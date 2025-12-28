@@ -2,10 +2,12 @@ import { Link, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { useState } from 'react';
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { useAuth } from '../../src/context/AuthContext';
 import api from '../../src/lib/api';
 
 export default function RegisterScreen() {
     const router = useRouter();
+    const { signIn } = useAuth();
     const [loading, setLoading] = useState(false);
 
     const [formData, setFormData] = useState({
@@ -34,8 +36,6 @@ export default function RegisterScreen() {
         }
 
         setLoading(true);
-        // Updated to match Web App's endpoint: /api/auth/register
-        // BaseURL is /api, so we post to /auth/register
         try {
             const payload = {
                 name: formData.name.trim(),
@@ -43,23 +43,34 @@ export default function RegisterScreen() {
                 phone: formData.phone.trim(),
                 dateOfBirth: formData.birthDate,
                 expectedDueDate: formData.expectedDueDate || undefined,
-                password: formData.password.trim(), // Trim password too to be safe (though usually not recommended, for mobile it helps avoid accidental spaces)
+                password: formData.password.trim(),
                 confirmPassword: formData.confirmPassword.trim(),
                 role: 'patient'
             };
 
             console.log('Registering with payload:', JSON.stringify(payload));
-            await api.post('/auth/register', payload);
+            const response = await api.post('/auth/register', payload);
 
-            Alert.alert('Success', 'Account created! Please log in.', [
-                { text: 'OK', onPress: () => router.replace('/(auth)/login') }
-            ]);
+            if (response.data.token && response.data.user) {
+                // Auto-login using the token from registration
+                await signIn(response.data.token, response.data.user);
+                Alert.alert('Success', 'Account created! Welcome to PrenatalPlus.');
+                // Navigation happens via AuthContext
+            } else {
+                Alert.alert('Success', 'Account created! Please log in.', [
+                    { text: 'OK', onPress: () => router.replace('/(auth)/login') }
+                ]);
+            }
         } catch (error: any) {
             console.error('Registration Error:', error);
-            if (error.response) {
-                console.log('Error Data:', JSON.stringify(error.response.data));
+            let message = error.response?.data?.error || error.response?.data?.message || 'Registration failed.';
+
+            // If it's a validation error, try to show the first detail
+            if (error.response?.data?.details && Array.isArray(error.response.data.details)) {
+                const details = error.response.data.details.map((d: any) => `${d.path.join('.')}: ${d.message}`).join('\n');
+                message = `Validation Error:\n${details}`;
             }
-            const message = error.response?.data?.error || error.response?.data?.message || 'Registration failed.';
+
             Alert.alert('Registration Failed', message);
         } finally {
             setLoading(false);

@@ -72,7 +72,10 @@ const CATEGORY_TINT: Record<string, string> = {
     OTHER: '#475569',
 };
 
+import { useAuth } from '../../src/context/AuthContext';
+
 export default function ReportsScreen() {
+    const { user } = useAuth();
     const insets = useSafeAreaInsets();
     const [reports, setReports] = useState<MedicalReport[]>([]);
     const [loading, setLoading] = useState(true);
@@ -91,6 +94,10 @@ export default function ReportsScreen() {
     });
 
     const fetchReports = async () => {
+        if (!user) {
+            setLoading(false);
+            return;
+        }
         try {
             setLoading(true);
             const res = await api.get('/reports');
@@ -105,7 +112,7 @@ export default function ReportsScreen() {
 
     useEffect(() => {
         fetchReports();
-    }, []);
+    }, [user]);
 
     const pickFile = async () => {
         try {
@@ -158,7 +165,7 @@ export default function ReportsScreen() {
             await api.post('/reports', {
                 title: newReport.title,
                 type: newReport.type,
-                category: newReport.type, // Simplify by using type as category for now
+                category: 'OTHER', // Default to 'OTHER' to avoid enum mismatch
                 description: newReport.description,
                 doctorName: newReport.doctorName,
                 reportDate: newReport.date,
@@ -181,7 +188,8 @@ export default function ReportsScreen() {
             fetchReports();
         } catch (error: any) {
             console.error('[Reports] Upload Error:', error.response?.data || error.message);
-            Alert.alert('Upload Failed', error.response?.data?.error || 'Failed to upload report. Please try again.');
+            const errorDetail = error.response?.data?.details || error.response?.data?.message || error.message;
+            Alert.alert('Upload Failed', `${error.response?.data?.error || 'Failed to upload report'}\n\nDetails: ${errorDetail}`);
         } finally {
             setUploading(false);
         }

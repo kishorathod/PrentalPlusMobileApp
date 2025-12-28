@@ -26,10 +26,22 @@ type Appointment = {
     status: 'SCHEDULED' | 'CONFIRMED' | 'COMPLETED' | 'CANCELLED';
     type?: string;
     doctorName?: string;
+    doctorId?: string;
     notes?: string;
+    doctorAdvice?: string;
 };
 
+type Doctor = {
+    id: string;
+    name: string;
+    specialization: string;
+    avatar?: string;
+};
+
+import { useAuth } from '../../src/context/AuthContext';
+
 export default function AppointmentsScreen() {
+    const { user } = useAuth();
     const insets = useSafeAreaInsets();
     const [appointments, setAppointments] = useState<Appointment[]>([]);
     const [loading, setLoading] = useState(true);
@@ -42,28 +54,47 @@ export default function AppointmentsScreen() {
         type: 'ROUTINE_CHECKUP',
         date: '',
         time: '',
+        doctorId: '',
         doctorName: '',
         location: '',
         notes: '',
+        doctorAdvice: '',
     });
 
+    const [doctors, setDoctors] = useState<Doctor[]>([]);
+
     const fetchAppointments = async () => {
+        if (!user) {
+            setLoading(false);
+            return;
+        }
         try {
             setLoading(true);
             const res = await api.get('/appointments');
             setAppointments(res.data.appointments || []);
-        } catch (error) {
+        } catch (error: any) {
             console.error('Failed to fetch appointments:', error);
-            Alert.alert('Error', 'Failed to load appointments');
+            const errorDetail = error.response?.data?.error || error.response?.data?.message || error.message;
+            Alert.alert('Error', `Failed to load appointments\n\nDetail: ${errorDetail}`);
         } finally {
             setLoading(false);
             setRefreshing(false);
         }
     };
 
+    const fetchDoctors = async () => {
+        try {
+            const res = await api.get('/mobile-doctors');
+            setDoctors(res.data.doctors || []);
+        } catch (error) {
+            console.error('Failed to fetch doctors:', error);
+        }
+    };
+
     useEffect(() => {
         fetchAppointments();
-    }, []);
+        fetchDoctors();
+    }, [user]);
 
     const onRefresh = () => {
         setRefreshing(true);
@@ -92,9 +123,11 @@ export default function AppointmentsScreen() {
                 type: formData.type,
                 date: dateObj.toISOString(),
                 duration: 30, // Default
+                doctorId: formData.doctorId || undefined,
                 doctorName: formData.doctorName,
                 location: formData.location,
                 notes: formData.notes,
+                doctorAdvice: formData.doctorAdvice,
             });
 
             Alert.alert('Success', 'Appointment scheduled successfully!');
@@ -104,15 +137,17 @@ export default function AppointmentsScreen() {
                 type: 'ROUTINE_CHECKUP',
                 date: '',
                 time: '',
+                doctorId: '',
                 doctorName: '',
                 location: '',
                 notes: '',
+                doctorAdvice: '',
             });
             fetchAppointments();
         } catch (error: any) {
             console.error('Failed to create appointment:', error);
-            const msg = error.response?.data?.error || 'Failed to create appointment';
-            Alert.alert('Error', msg);
+            const errorDetail = error.response?.data?.error || error.response?.data?.message || error.message;
+            Alert.alert('Error', `Failed to create appointment\n\nDetail: ${errorDetail}`);
         } finally {
             setLoading(false);
         }
@@ -239,9 +274,38 @@ export default function AppointmentsScreen() {
                                     </View>
                                 </View>
 
-                                <FormInput label="Doctor Name" value={formData.doctorName} onChangeText={(t: string) => setFormData(p => ({ ...p, doctorName: t }))} placeholder="Dr. Smith" />
+                                <View style={modalStyles.inputGroup}>
+                                    <Text style={modalStyles.label}>Select Doctor</Text>
+                                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={modalStyles.doctorSelector}>
+                                        {doctors.map((doctor) => (
+                                            <TouchableOpacity
+                                                key={doctor.id}
+                                                onPress={() => setFormData(p => ({ ...p, doctorId: doctor.id, doctorName: doctor.name }))}
+                                                activeOpacity={0.7}
+                                                style={[
+                                                    modalStyles.doctorChip,
+                                                    formData.doctorId === doctor.id && modalStyles.doctorChipActive
+                                                ]}
+                                            >
+                                                <Text style={[
+                                                    modalStyles.doctorChipText,
+                                                    formData.doctorId === doctor.id && modalStyles.doctorChipActiveText
+                                                ]}>
+                                                    Dr. {doctor.name}
+                                                </Text>
+                                                <Text style={modalStyles.doctorSpecialization}>
+                                                    {doctor.specialization || "OB/GYN"}
+                                                </Text>
+                                            </TouchableOpacity>
+                                        ))}
+                                    </ScrollView>
+                                    <Text style={modalStyles.helperText}>Or enter name manually below if not listed</Text>
+                                </View>
+
+                                <FormInput label="Doctor Name" value={formData.doctorName} onChangeText={(t: string) => setFormData(p => ({ ...p, doctorName: t, doctorId: '' }))} placeholder="Dr. Smith" />
                                 <FormInput label="Location" value={formData.location} onChangeText={(t: string) => setFormData(p => ({ ...p, location: t }))} placeholder="Main Clinic" />
                                 <FormInput label="Notes" value={formData.notes} onChangeText={(t: string) => setFormData(p => ({ ...p, notes: t }))} placeholder="Add any specific instructions or notes..." multiline />
+                                <FormInput label="Doctor's Advice" value={formData.doctorAdvice} onChangeText={(t: string) => setFormData(p => ({ ...p, doctorAdvice: t }))} placeholder="What did the doctor suggest?" multiline />
 
                                 <TouchableOpacity
                                     onPress={handleCreate}
@@ -335,6 +399,16 @@ function AppointmentCard({ appointment }: { appointment: Appointment }) {
                     <Text style={styles.typeTagText}>{appointment.type.replace('_', ' ')}</Text>
                 </View>
             )}
+
+            {appointment.doctorAdvice && (
+                <View style={[styles.adviceContainer, { backgroundColor: '#F0F9FF' }]}>
+                    <View style={styles.adviceHeader}>
+                        <Clock size={14} color="#0369A1" />
+                        <Text style={styles.adviceTitle}>DOCTOR'S ADVICE</Text>
+                    </View>
+                    <Text style={styles.adviceText}>{appointment.doctorAdvice}</Text>
+                </View>
+            )}
         </View>
     );
 }
@@ -395,6 +469,16 @@ const styles = StyleSheet.create({
     detailText: { color: COLORS.textSecondary, fontSize: 14, fontWeight: '600' },
     typeTag: { alignSelf: 'flex-start', backgroundColor: '#F8FAFC', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, borderWidth: 1, borderColor: '#E2E8F0' },
     typeTagText: { color: COLORS.textSecondary, fontSize: 11, fontWeight: '700', textTransform: 'uppercase' },
+    adviceContainer: {
+        marginTop: 16,
+        padding: 14,
+        borderRadius: 16,
+        borderWidth: 1,
+        borderColor: '#BAE6FD',
+    },
+    adviceHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 },
+    adviceTitle: { fontSize: 11, fontWeight: '800', color: '#0369A1', letterSpacing: 0.5 },
+    adviceText: { fontSize: 14, color: '#0C4A6E', lineHeight: 20, fontWeight: '500' },
     emptyState: { alignItems: 'center', paddingVertical: 60 },
     emptyIconWrapper: { marginBottom: 20 },
     emptyTitle: { fontSize: 20, fontWeight: '800', color: COLORS.textPrimary, marginBottom: 8 },
@@ -465,4 +549,23 @@ const modalStyles = StyleSheet.create({
         elevation: 4
     },
     saveButtonText: { color: COLORS.white, fontWeight: '800', fontSize: 17 },
+    doctorSelector: { marginVertical: 8 },
+    doctorChip: {
+        paddingVertical: 10,
+        paddingHorizontal: 16,
+        borderRadius: 16,
+        backgroundColor: '#F8FAFC',
+        marginRight: 10,
+        borderWidth: 1,
+        borderColor: COLORS.border,
+        minWidth: 120,
+    },
+    doctorChipActive: {
+        backgroundColor: '#E0F2FE',
+        borderColor: COLORS.primary,
+    },
+    doctorChipText: { fontSize: 14, fontWeight: '700', color: COLORS.textPrimary },
+    doctorChipActiveText: { color: COLORS.primary },
+    doctorSpecialization: { fontSize: 11, color: COLORS.textSecondary, marginTop: 2 },
+    helperText: { fontSize: 12, color: COLORS.textSecondary, fontStyle: 'italic', marginTop: 4 },
 });

@@ -36,4 +36,20 @@ api.interceptors.request.use(async (config) => {
     return config;
 });
 
+api.interceptors.response.use(
+    (response) => response,
+    async (error) => {
+        if (error.response?.status === 401) {
+            console.warn('[API] 401 detected, clearing session...');
+            try {
+                await SecureStore.deleteItemAsync('sessionToken');
+                await SecureStore.deleteItemAsync('userData');
+            } catch (e) {
+                console.error('[API] Error clearing session:', e);
+            }
+        }
+        return Promise.reject(error);
+    }
+);
+
 export default api;

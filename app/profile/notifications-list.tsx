@@ -56,15 +56,48 @@ export default function NotificationsListScreen() {
         fetchNotifications();
     };
 
-    const markAsRead = async (id: string) => {
-        // Mocking mark as read functionality
-        setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+    const markAsRead = async (id: string, currentlyRead: boolean) => {
+        if (currentlyRead) return;
+
+        try {
+            // Optimistic update
+            setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+            await api.put(`/notifications/${id}`, { read: true });
+        } catch (error) {
+            console.error('[NotificationsList] Failed to mark as read:', error);
+            // Revert on error if necessary
+        }
+    };
+
+    const handleDelete = async (id: string) => {
+        try {
+            // Optimistic update
+            setNotifications(prev => prev.filter(n => n.id !== id));
+            await api.delete(`/notifications/${id}`);
+        } catch (error) {
+            console.error('[NotificationsList] Failed to delete notification:', error);
+            Alert.alert('Error', 'Failed to delete notification');
+            fetchNotifications(); // Refresh to restore state
+        }
     };
 
     const clearAll = () => {
         Alert.alert('Clear All', 'Are you sure you want to clear all notifications?', [
             { text: 'Cancel', style: 'cancel' },
-            { text: 'Clear', style: 'destructive', onPress: () => setNotifications([]) }
+            {
+                text: 'Clear',
+                style: 'destructive',
+                onPress: async () => {
+                    try {
+                        setNotifications([]);
+                        await api.delete('/notifications');
+                    } catch (error) {
+                        console.error('[NotificationsList] Failed to clear all:', error);
+                        Alert.alert('Error', 'Failed to clear notifications');
+                        fetchNotifications();
+                    }
+                }
+            }
         ]);
     };
 
@@ -95,7 +128,8 @@ export default function NotificationsListScreen() {
                     renderItem={({ item }) => (
                         <NotificationCard
                             notification={item}
-                            onPress={() => markAsRead(item.id)}
+                            onPress={() => markAsRead(item.id, item.read)}
+                            onDelete={() => handleDelete(item.id)}
                         />
                     )}
                     refreshControl={
@@ -116,7 +150,7 @@ export default function NotificationsListScreen() {
     );
 }
 
-function NotificationCard({ notification, onPress }: { notification: any, onPress: () => void }) {
+function NotificationCard({ notification, onPress, onDelete }: { notification: any, onPress: () => void, onDelete: () => void }) {
     const getIcon = () => {
         switch (notification.type) {
             case 'VITAL_REMINDER': return <Heart size={20} color="#FF4D4D" />;
@@ -156,6 +190,9 @@ function NotificationCard({ notification, onPress }: { notification: any, onPres
                     {new Date(notification.createdAt).toLocaleDateString()} at {new Date(notification.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 </Text>
             </View>
+            <TouchableOpacity onPress={onDelete} style={styles.deleteCardBtn}>
+                <Trash2 size={16} color={COLORS.textSecondary} />
+            </TouchableOpacity>
         </TouchableOpacity>
     );
 }
@@ -239,4 +276,8 @@ const styles = StyleSheet.create({
     },
     emptyTitle: { fontSize: 20, fontWeight: '800', color: COLORS.textPrimary, marginBottom: 8 },
     emptySubtitle: { fontSize: 14, color: COLORS.textSecondary, textAlign: 'center', paddingHorizontal: 40, lineHeight: 20 },
+    deleteCardBtn: {
+        padding: 8,
+        alignSelf: 'center',
+    },
 });

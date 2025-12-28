@@ -43,7 +43,10 @@ type VitalsStats = {
     lastReading: VitalReading | null;
 };
 
+import { useAuth } from '../../src/context/AuthContext';
+
 export default function VitalsScreen() {
+    const { user } = useAuth();
     const insets = useSafeAreaInsets();
     const [readings, setReadings] = useState<VitalReading[]>([]);
     const [stats, setStats] = useState<VitalsStats | null>(null);
@@ -63,14 +66,19 @@ export default function VitalsScreen() {
     });
 
     const fetchVitals = async () => {
+        if (!user) {
+            setLoading(false);
+            return;
+        }
         try {
             setLoading(true);
             const res = await api.get('/vitals/readings');
             setReadings(res.data.readings || []);
             setStats(res.data.stats);
-        } catch (error) {
+        } catch (error: any) {
             console.error('Failed to fetch vitals:', error);
-            Alert.alert('Error', 'Failed to load vitals data');
+            const errorDetail = error.response?.data?.error || error.response?.data?.message || error.message;
+            Alert.alert('Error', `Failed to load vitals data\n\nDetail: ${errorDetail}`);
         } finally {
             setLoading(false);
             setRefreshing(false);
@@ -79,7 +87,7 @@ export default function VitalsScreen() {
 
     useEffect(() => {
         fetchVitals();
-    }, []);
+    }, [user]);
 
     const onRefresh = () => {
         setRefreshing(true);
@@ -138,8 +146,8 @@ export default function VitalsScreen() {
             fetchVitals();
         } catch (error: any) {
             console.error('Failed to record vitals:', error);
-            const msg = error.response?.data?.error || 'Failed to record vitals';
-            Alert.alert('Error', msg);
+            const errorDetail = error.response?.data?.error || error.response?.data?.message || error.message;
+            Alert.alert('Record Failed', `Failed to record vitals\n\nDetail: ${errorDetail}`);
         } finally {
             setLoading(false);
         }
