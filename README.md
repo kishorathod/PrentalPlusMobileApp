@@ -13,12 +13,12 @@ The PrenatalPlus ecosystem consists of a Mobile App (Frontend) and a unified Bac
 ```mermaid
 graph TD
     subgraph "Mobile Device (User)"
-        A[Mobile App<br/>(React Native/Expo)]
+        A["Mobile App<br/>(React Native/Expo)"]
     end
 
     subgraph "Backend Infrastructure"
-        B[Next.js API Server<br/>(Auth, Logic, Validation)]
-        C[PostgreSQL Database<br/>(Prisma ORM)]
+        B["Next.js API Server<br/>(Auth, Logic, Validation)"]
+        C["PostgreSQL Database<br/>(Prisma ORM)"]
     end
 
     A <--"JSON / HTTPS"--> B
