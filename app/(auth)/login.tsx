@@ -1,67 +1,77 @@
+import { LinearGradient } from 'expo-linear-gradient';
 import { Link } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { Eye, EyeOff, Lock, Mail } from 'lucide-react-native';
 import React, { useState } from 'react';
-import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import Animated, { FadeInDown, useAnimatedStyle, useSharedValue, withSequence, withTiming } from 'react-native-reanimated';
+import { Button, Input } from '../../src/components/ui';
 import { useAuth } from '../../src/context/AuthContext';
 import api from '../../src/lib/api';
+import { errorNotification, mediumImpact, successNotification } from '../../src/lib/haptics';
+import theme from '../../src/lib/theme';
 
 export default function LoginScreen() {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
+    const [showPassword, setShowPassword] = useState(false);
     const [formLoading, setFormLoading] = useState(false);
     const { signIn } = useAuth();
 
+    const shakeAnimation = useSharedValue(0);
+
+    const animatedStyle = useAnimatedStyle(() => ({
+        transform: [{ translateX: shakeAnimation.value }],
+    }));
+
+    const triggerShake = () => {
+        shakeAnimation.value = withSequence(
+            withTiming(-10, { duration: 50 }),
+            withTiming(10, { duration: 50 }),
+            withTiming(-10, { duration: 50 }),
+            withTiming(10, { duration: 50 }),
+            withTiming(0, { duration: 50 })
+        );
+    };
+
     const handleLogin = async () => {
         if (!email || !password) {
+            triggerShake();
+            errorNotification();
             Alert.alert('Error', 'Please enter both email and password');
             return;
         }
 
         setFormLoading(true);
         try {
-            // Sign In using Custom Mobile Login Route
             const cleanEmail = email.trim();
             const cleanPassword = password.trim();
-
-            console.log(`Attempting login with: "${cleanEmail}"`);
 
             const payload = {
                 email: cleanEmail,
                 password: cleanPassword
             };
 
-            // CRITICAL FIX (Patch 3.0): Use Custom Mobile API Proxy
-            // This route (/api/mobile-login) handles the NextAuth interactions server-side
-            // and guarantees a JSON response, converting any HTML redirects into 401s.
             const response = await api.post('/mobile-login', payload);
 
-            console.log('--- LOGIN RESPONSE (Patch 3.0) ---');
-            console.log('Status:', response.status);
-            console.log('Data:', JSON.stringify(response.data));
-
-            // Handle errors from custom API
             if (response.data?.error) {
                 throw new Error(response.data.error);
             }
 
-            // Extract token from response
             const sessionToken = response.data?.token || '';
 
             if (!sessionToken) {
                 throw new Error('Authentication successful but no token received.');
             }
 
-            console.log('Token received, length:', sessionToken.length);
-
-            // Store session and user data
             const userPreview = response.data?.user || { id: 'user', name: 'User', email: cleanEmail, role: 'PATIENT' };
             await signIn(sessionToken, userPreview as any);
+            successNotification();
 
         } catch (error: any) {
             console.error('Login Error:', error);
-            console.error('Error response status:', error.response?.status);
-            console.error('Error response data:', JSON.stringify(error.response?.data));
-            console.error('Error response headers:', JSON.stringify(error.response?.headers));
+            triggerShake();
+            errorNotification();
             const message = error.response?.data?.error || error.message || 'Login failed. Please check your credentials.';
             Alert.alert('Login Error', message);
         } finally {
@@ -70,91 +80,167 @@ export default function LoginScreen() {
     };
 
     return (
-        <View className="flex-1 bg-white">
+        <View style={styles.container}>
             <StatusBar style="dark" />
+            <LinearGradient
+                colors={theme.gradients.background}
+                style={StyleSheet.absoluteFill}
+            />
+
             <KeyboardAvoidingView
                 behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-                className="flex-1 justify-center px-8"
+                style={styles.keyboardView}
             >
-                <View className="items-center mb-10">
-                    <View className="w-20 h-20 bg-blue-500 rounded-2xl items-center justify-center mb-4 shadow-lg shadow-blue-200">
-                        <Text className="text-white text-3xl font-bold">P+</Text>
-                    </View>
-                    <Text className="text-3xl font-bold text-gray-900">Welcome Back</Text>
-                    <Text className="text-gray-500 mt-2 text-center">Sign in to continue your prenatal journey</Text>
-                    <Text className="text-xs text-gray-400 mt-1">Security Patch 3.0 (Custom API)</Text>
-                </View>
+                {/* Logo and Title */}
+                <Animated.View entering={FadeInDown.delay(100).springify()} style={styles.logoContainer}>
+                    <LinearGradient
+                        colors={theme.gradients.pregnancy}
+                        style={styles.logoGradient}
+                    >
+                        <Text style={styles.logoText}>P+</Text>
+                    </LinearGradient>
+                    <Text style={styles.title}>Welcome Back</Text>
+                    <Text style={styles.subtitle}>Sign in to continue your prenatal journey</Text>
+                </Animated.View>
 
-                <View className="space-y-4">
-                    <View>
-                        <Text className="text-gray-700 font-medium mb-2 ml-1">Email Address</Text>
-                        <TextInput
-                            className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-gray-800 focus:border-blue-500 focus:bg-white"
-                            placeholder="e.g. sarah@example.com"
-                            value={email}
-                            onChangeText={setEmail}
-                            keyboardType="email-address"
-                            autoCapitalize="none"
-                            placeholderTextColor="#9CA3AF"
-                        />
-                    </View>
+                {/* Form */}
+                <Animated.View
+                    entering={FadeInDown.delay(200).springify()}
+                    style={[styles.formContainer, animatedStyle]}
+                >
+                    <Input
+                        label="Email Address"
+                        placeholder="e.g. sarah@example.com"
+                        value={email}
+                        onChangeText={setEmail}
+                        keyboardType="email-address"
+                        autoCapitalize="none"
+                        leftIcon={<Mail size={20} color={theme.colors.text.tertiary} />}
+                        containerStyle={styles.inputContainer}
+                    />
 
-                    <View>
-                        <Text className="text-gray-700 font-medium mb-2 ml-1">Password</Text>
-                        <TextInput
-                            className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-gray-800 focus:border-blue-500 focus:bg-white"
-                            placeholder="••••••••"
-                            value={password}
-                            onChangeText={setPassword}
-                            secureTextEntry
-                            autoCapitalize="none"
-                            placeholderTextColor="#9CA3AF"
-                        />
-                    </View>
+                    <Input
+                        label="Password"
+                        placeholder="••••••••"
+                        value={password}
+                        onChangeText={setPassword}
+                        secureTextEntry={!showPassword}
+                        autoCapitalize="none"
+                        leftIcon={<Lock size={20} color={theme.colors.text.tertiary} />}
+                        rightIcon={
+                            <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
+                                {showPassword ? (
+                                    <EyeOff size={20} color={theme.colors.text.tertiary} />
+                                ) : (
+                                    <Eye size={20} color={theme.colors.text.tertiary} />
+                                )}
+                            </TouchableOpacity>
+                        }
+                        containerStyle={styles.inputContainer}
+                    />
 
                     <TouchableOpacity
-                        className="flex-row justify-end"
+                        style={styles.forgotPassword}
                         onPress={() => Alert.alert('Forgot Password', 'Please visit our website to reset your password.')}
                     >
-                        <Text className="text-blue-600 font-semibold">Forgot Password?</Text>
+                        <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
                     </TouchableOpacity>
 
-                    <TouchableOpacity
-                        className="w-full bg-blue-600 rounded-xl py-4 items-center justify-center shadow-lg shadow-blue-200 mt-4 active:bg-blue-700"
+                    <Button
                         onPress={handleLogin}
                         disabled={formLoading}
+                        loading={formLoading}
+                        fullWidth
+                        size="lg"
+                        style={styles.loginButton}
                     >
-                        {formLoading ? (
-                            <ActivityIndicator color="white" />
-                        ) : (
-                            <Text className="text-white text-lg font-bold">Sign In</Text>
-                        )}
-                    </TouchableOpacity>
-                </View>
+                        Sign In
+                    </Button>
+                </Animated.View>
 
-                <View className="flex-row justify-center mt-10">
-                    <Text className="text-gray-500">Don't have an account? </Text>
+                {/* Sign Up Link */}
+                <Animated.View entering={FadeInDown.delay(300).springify()} style={styles.signupContainer}>
+                    <Text style={styles.signupText}>Don't have an account? </Text>
                     <Link href="/(auth)/register" asChild>
-                        <TouchableOpacity>
-                            <Text className="text-blue-600 font-bold">Sign Up</Text>
+                        <TouchableOpacity onPress={() => mediumImpact()}>
+                            <Text style={styles.signupLink}>Sign Up</Text>
                         </TouchableOpacity>
                     </Link>
-                </View>
-
-                <TouchableOpacity
-                    className="mt-8 self-center p-2"
-                    onPress={async () => {
-                        try {
-                            const res = await api.get('/auth/csrf');
-                            Alert.alert('Connection OK', `Status: ${res.status}\nCSRF: ${res.data.csrfToken ? 'Found' : 'Missing'}\nURL: ${api.getUri()}`);
-                        } catch (e: any) {
-                            Alert.alert('Connection Failed', `${e.message}\nURL: ${api.getUri()}`);
-                        }
-                    }}
-                >
-                    <Text className="text-gray-400 text-xs text-center">DEBUG: Test Server Connection</Text>
-                </TouchableOpacity>
+                </Animated.View>
             </KeyboardAvoidingView>
         </View>
     );
 }
+
+const styles = StyleSheet.create({
+    container: {
+        flex: 1,
+        backgroundColor: theme.colors.white,
+    },
+    keyboardView: {
+        flex: 1,
+        justifyContent: 'center',
+        paddingHorizontal: theme.spacing.xl,
+    },
+    logoContainer: {
+        alignItems: 'center',
+        marginBottom: theme.spacing['2xl'],
+    },
+    logoGradient: {
+        width: 80,
+        height: 80,
+        borderRadius: theme.borderRadius.lg,
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginBottom: theme.spacing.md,
+        ...theme.shadows.lg,
+    },
+    logoText: {
+        color: theme.colors.white,
+        fontSize: theme.typography.fontSize['4xl'],
+        fontWeight: theme.typography.fontWeight.extrabold,
+    },
+    title: {
+        fontSize: theme.typography.fontSize['3xl'],
+        fontWeight: theme.typography.fontWeight.extrabold,
+        color: theme.colors.text.primary,
+        marginBottom: theme.spacing.xs,
+    },
+    subtitle: {
+        fontSize: theme.typography.fontSize.base,
+        color: theme.colors.text.secondary,
+        textAlign: 'center',
+    },
+    formContainer: {
+        marginBottom: theme.spacing.lg,
+    },
+    inputContainer: {
+        marginBottom: theme.spacing.md,
+    },
+    forgotPassword: {
+        alignSelf: 'flex-end',
+        marginBottom: theme.spacing.lg,
+    },
+    forgotPasswordText: {
+        color: theme.colors.primary[500],
+        fontSize: theme.typography.fontSize.sm,
+        fontWeight: theme.typography.fontWeight.semibold,
+    },
+    loginButton: {
+        marginTop: theme.spacing.sm,
+    },
+    signupContainer: {
+        flexDirection: 'row',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    signupText: {
+        color: theme.colors.text.secondary,
+        fontSize: theme.typography.fontSize.base,
+    },
+    signupLink: {
+        color: theme.colors.primary[500],
+        fontSize: theme.typography.fontSize.base,
+        fontWeight: theme.typography.fontWeight.bold,
+    },
+});

@@ -1,27 +1,17 @@
 import { LinearGradient } from 'expo-linear-gradient';
-import { useFocusEffect, useRouter } from 'expo-router';
+import { Link, useFocusEffect, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { Baby, Bell, Calendar, FileText, Heart, Pill, User as UserIcon, X } from 'lucide-react-native';
 import React, { useCallback, useState } from 'react';
 import { ActivityIndicator, Alert, Modal, RefreshControl, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Badge, Card, LoadingSkeleton, ProgressBar, SkeletonGroup } from '../../src/components/ui';
 import { useAuth } from '../../src/context/AuthContext';
 import api from '../../src/lib/api';
+import { lightImpact, mediumImpact } from '../../src/lib/haptics';
 import { getBabySize, getDaysUntilDue } from '../../src/lib/pregnancy-utils';
-
-const COLORS = {
-  primary: '#3A86FF',
-  primaryDark: '#0077B6',
-  secondary: '#FF8FA3',
-  background: '#F2F6FC', // Refined Soft Blue Mist
-  cardBackground: '#FFFFFF',
-  textPrimary: '#0B132A',
-  textSecondary: '#64748B',
-  danger: '#FF4D4D',
-  success: '#00C853',
-  white: '#FFFFFF',
-  border: '#E2E8F0',
-};
+import theme from '../../src/lib/theme';
 
 type DashboardData = {
   stats: {
@@ -83,6 +73,7 @@ export default function Dashboard() {
 
   const onRefresh = () => {
     setRefreshing(true);
+    lightImpact();
     fetchData();
   };
 
@@ -90,38 +81,64 @@ export default function Dashboard() {
   const stats = data?.stats;
   const babySize = activePregnancy ? getBabySize(activePregnancy.currentWeek) : null;
   const daysUntilDue = activePregnancy ? getDaysUntilDue(activePregnancy.dueDate) : null;
+  const weekProgress = activePregnancy ? (activePregnancy.currentWeek / 40) * 100 : 0;
 
   const insets = useSafeAreaInsets();
 
   if (loading && !data) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={COLORS.primary} />
-        <Text style={styles.loadingText}>Loading dashboard...</Text>
+        <LinearGradient
+          colors={theme.gradients.background}
+          style={StyleSheet.absoluteFill}
+        />
+        <SkeletonGroup style={{ width: '90%' }}>
+          <LoadingSkeleton height={120} borderRadius={theme.borderRadius.xl} />
+          <LoadingSkeleton height={80} />
+          <View style={{ flexDirection: 'row', gap: 12 }}>
+            <LoadingSkeleton height={100} width="30%" />
+            <LoadingSkeleton height={100} width="30%" />
+            <LoadingSkeleton height={100} width="30%" />
+          </View>
+        </SkeletonGroup>
       </View>
     );
   }
 
   return (
     <LinearGradient
-      colors={['#F9FBFF', '#FFFFFF']}
+      colors={theme.gradients.background}
       style={[styles.container, { paddingTop: Math.max(insets.top, 12) }]}
     >
       <StatusBar style="dark" />
 
-      {/* 1. Header Section */}
+      {/* Header Section */}
       <View style={styles.header}>
         <View style={styles.headerTitleContainer}>
           <Text style={styles.welcomeText}>Welcome back 👋</Text>
           <Text style={styles.userNameText} numberOfLines={1}>{user?.name || 'Patient'}</Text>
         </View>
         <View style={styles.headerIcons}>
-          <TouchableOpacity style={styles.headerIconBtn} onPress={() => router.push('/profile/notifications-list')}>
-            <Bell size={24} color={COLORS.textSecondary} />
-            {data?.recent?.notifications?.some(n => !n.read) && <View style={styles.notificationDot} />}
+          <TouchableOpacity
+            style={styles.headerIconBtn}
+            onPress={() => {
+              lightImpact();
+              router.push('/profile/notifications-list');
+            }}
+          >
+            <Bell size={22} color={theme.colors.text.secondary} />
+            {data?.recent?.notifications?.some(n => !n.read) && (
+              <Badge variant="danger" dot size="sm" style={styles.notificationDot} />
+            )}
           </TouchableOpacity>
-          <TouchableOpacity onPress={() => router.push('/(tabs)/profile')} style={styles.headerIconBtn}>
-            <UserIcon size={24} color={COLORS.textSecondary} />
+          <TouchableOpacity
+            onPress={() => {
+              lightImpact();
+              router.push('/(tabs)/profile');
+            }}
+            style={styles.headerIconBtn}
+          >
+            <UserIcon size={22} color={theme.colors.text.secondary} />
           </TouchableOpacity>
         </View>
       </View>
@@ -129,21 +146,16 @@ export default function Dashboard() {
       <ScrollView
         style={{ flex: 1 }}
         contentContainerStyle={{ paddingBottom: 40 }}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primary} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.primary[500]} />}
         showsVerticalScrollIndicator={false}
       >
-        <View style={{ paddingHorizontal: 20, paddingTop: 10 }}>
-          {/* 2. Top Status Card */}
-          <View style={styles.section}>
+        <View style={styles.content}>
+          {/* Pregnancy Status Card */}
+          <Animated.View entering={FadeInDown.delay(100).springify()}>
             {activePregnancy ? (
-              <LinearGradient
-                colors={[COLORS.primary, '#8B5CF6']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.statusCard}
-              >
+              <Card variant="gradient" gradientColors={theme.gradients.pregnancy} padding="lg" style={styles.statusCard}>
                 <View style={styles.statusHeader}>
-                  <View>
+                  <View style={{ flex: 1 }}>
                     <Text style={styles.statusLabel}>CURRENT STATUS</Text>
                     <Text style={styles.statusWeek}>Week {activePregnancy.currentWeek || '?'}</Text>
                     <Text style={styles.statusHint}>
@@ -151,124 +163,148 @@ export default function Dashboard() {
                     </Text>
                   </View>
                   <View style={styles.daysLeftBadge}>
-                    <Text style={styles.daysLeftText}>{Math.max(0, 280 - (activePregnancy.currentWeek * 7))} days left</Text>
+                    <Text style={styles.daysLeftText}>{Math.max(0, 280 - (activePregnancy.currentWeek * 7))} days</Text>
+                    <Text style={styles.daysLeftLabel}>remaining</Text>
                   </View>
                 </View>
 
-                {/* New Baby Growth Preview */}
+                {/* Progress Bar */}
+                <View style={styles.progressContainer}>
+                  <ProgressBar
+                    progress={weekProgress}
+                    height={6}
+                    gradient
+                    gradientColors={['#FFFFFF', '#F0F9FF']}
+                    backgroundColor="rgba(255,255,255,0.2)"
+                  />
+                </View>
+
+                {/* Baby Growth Preview */}
                 <TouchableOpacity
-                  onPress={() => router.push('/growth/baby-growth')}
+                  onPress={() => {
+                    mediumImpact();
+                    router.push('/growth/baby-growth');
+                  }}
                   activeOpacity={0.8}
                   style={styles.babySizeContainer}
                 >
+                  <View style={styles.babyIconCircle}>
+                    <Baby size={24} color={theme.colors.primary[500]} />
+                  </View>
                   <View style={styles.babySizeTextContainer}>
                     <Text style={styles.babySizeText}>
-                      Your baby is the size of a <Text style={styles.babySizeHighlight}>{activePregnancy.babySize || '...'}</Text>
+                      Size of a <Text style={styles.babySizeHighlight}>{activePregnancy.babySize || '...'}</Text>
                     </Text>
-                    <Text style={styles.babySizeSubtext}>Tap to see development milestones →</Text>
-                  </View>
-                  <View style={styles.babyIconCircle}>
-                    <Baby size={24} color={COLORS.primary} />
+                    <Text style={styles.babySizeSubtext}>Tap to see milestones →</Text>
                   </View>
                 </TouchableOpacity>
-              </LinearGradient>
+              </Card>
             ) : (
-              <LinearGradient
-                colors={['#64748B', '#475569']}
-                style={styles.statusCard}
-              >
+              <Card variant="gradient" gradientColors={[theme.colors.gray[600], theme.colors.gray[700]]} padding="lg">
                 <Text style={styles.statusLabel}>CURRENT STATUS</Text>
                 <Text style={styles.statusWeek}>No Active Pregnancy</Text>
                 <TouchableOpacity
-                  onPress={() => setIsModalVisible(true)}
+                  onPress={() => {
+                    mediumImpact();
+                    setIsModalVisible(true);
+                  }}
                   style={styles.startButton}
                 >
                   <Text style={styles.startButtonText}>Start Tracking</Text>
                 </TouchableOpacity>
-              </LinearGradient>
+              </Card>
             )}
-          </View>
+          </Animated.View>
 
-          {/* 3. Overview Cards Grid */}
+          {/* Stats Overview */}
           {stats && (
-            <View style={styles.section}>
+            <Animated.View entering={FadeInDown.delay(200).springify()} style={styles.section}>
               <Text style={styles.sectionHeader}>Daily Overview</Text>
               <View style={styles.statsGrid}>
                 <StatCard
-                  icon={<Calendar size={24} color={COLORS.primary} />}
-                  label="Appts"
+                  icon={<Calendar size={24} color={theme.colors.primary[500]} />}
+                  label="Appointments"
                   value={stats.upcomingAppointments}
+                  color={theme.colors.primary[50]}
+                  delay={250}
                 />
                 <StatCard
-                  icon={<Heart size={24} color="#EF4444" />}
+                  icon={<Heart size={24} color={theme.colors.danger[500]} />}
                   label="Vitals"
                   value={stats.totalVitals}
+                  color={theme.colors.danger[50]}
+                  delay={300}
                 />
                 <StatCard
-                  icon={<FileText size={24} color="#10B981" />}
+                  icon={<FileText size={24} color={theme.colors.success[500]} />}
                   label="Reports"
                   value={stats.totalReports}
+                  color={theme.colors.success[50]}
+                  delay={350}
                 />
               </View>
-            </View>
+            </Animated.View>
           )}
 
-          {/* 4. Quick Actions */}
-          <View style={styles.section}>
+          {/* Quick Actions */}
+          <Animated.View entering={FadeInDown.delay(400).springify()} style={styles.section}>
             <Text style={styles.sectionHeader}>Quick Actions</Text>
             <View style={styles.actionsGrid}>
               <ActionCard
                 title="Add Vitals"
-                icon={<Heart size={26} color="#3A86FF" />}
-                bgColor="#EFF6FF"
+                icon={<Heart size={26} color={theme.colors.primary[600]} />}
+                bgColor={theme.colors.primary[50]}
                 href="/(tabs)/vitals"
+                delay={450}
               />
               <ActionCard
                 title="Baby Growth"
-                icon={<Baby size={26} color="#EC4899" />}
-                bgColor="#FDF2F8"
+                icon={<Baby size={26} color={theme.colors.secondary[600]} />}
+                bgColor={theme.colors.secondary[50]}
                 href="/growth/baby-growth"
+                delay={500}
               />
               <ActionCard
-                title="Meds"
-                icon={<Pill size={26} color="#10B981" />}
-                bgColor="#ECFDF5"
+                title="Medications"
+                icon={<Pill size={26} color={theme.colors.success[600]} />}
+                bgColor={theme.colors.success[50]}
                 href="/medications/list"
+                delay={550}
               />
             </View>
-          </View>
+          </Animated.View>
 
-          {/* 5. Health Tip Card */}
-          <View style={styles.section}>
-            <LinearGradient
-              colors={['#E0F2FE', '#F0F9FF']}
-              style={styles.tipCard}
-            >
+          {/* Health Tip */}
+          <Animated.View entering={FadeInDown.delay(600).springify()} style={styles.section}>
+            <Card variant="elevated" padding="lg" style={styles.tipCard}>
               <View style={styles.tipIconWrapper}>
-                <Text style={{ fontSize: 24 }}>💡</Text>
+                <Text style={{ fontSize: 28 }}>💡</Text>
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.tipTitle}>{data?.healthTip?.title || 'Daily Health Tip'}</Text>
                 <Text style={styles.tipText}>{data?.healthTip?.message || 'Stay hydrated! Drinking enough water helps maintain amniotic fluid levels. 👶'}</Text>
               </View>
-            </LinearGradient>
-          </View>
+            </Card>
+          </Animated.View>
 
-          {/* 6. Recent Notifications */}
+          {/* Recent Notifications */}
           {data?.recent?.notifications && data.recent.notifications.length > 0 && (
-            <View style={styles.section}>
+            <Animated.View entering={FadeInDown.delay(700).springify()} style={styles.section}>
               <View style={styles.sectionHeaderRow}>
                 <Text style={styles.sectionHeader}>Recent Updates</Text>
-                <TouchableOpacity onPress={() => router.push('/profile/notifications-list')}>
+                <TouchableOpacity onPress={() => {
+                  lightImpact();
+                  router.push('/profile/notifications-list');
+                }}>
                   <Text style={styles.seeAllText}>See All</Text>
                 </TouchableOpacity>
               </View>
-              <View style={styles.notificationsList}>
-                {data.recent.notifications.map((notif: any) => (
-                  <NotificationItem key={notif.id} notification={notif} />
+              <Card variant="default" padding="sm">
+                {data.recent.notifications.slice(0, 3).map((notif: any, index) => (
+                  <NotificationItem key={notif.id} notification={notif} isLast={index === Math.min(2, data.recent.notifications.length - 1)} />
                 ))}
-              </View>
-            </View>
+              </Card>
+            </Animated.View>
           )}
         </View>
       </ScrollView>
@@ -285,39 +321,74 @@ export default function Dashboard() {
   );
 }
 
-function StatCard({ icon, label, value }: { icon: React.ReactNode; label: string; value: number }) {
+// Stat Card Component
+function StatCard({ icon, label, value, color, delay }: { icon: React.ReactNode; label: string; value: number; color: string; delay: number }) {
   return (
-    <View style={styles.statCard}>
-      <View style={styles.statIconWrapper}>{icon}</View>
-      <Text style={styles.statValue}>{value}</Text>
-      <Text style={styles.statLabel}>{label}</Text>
-    </View>
+    <Animated.View entering={FadeInDown.delay(delay).springify()} style={{ flex: 1 }}>
+      <Card variant="elevated" padding="md" style={styles.statCard}>
+        <View style={[styles.statIconWrapper, { backgroundColor: color }]}>{icon}</View>
+        <Text style={styles.statValue}>{value}</Text>
+        <Text style={styles.statLabel}>{label}</Text>
+      </Card>
+    </Animated.View>
   );
 }
 
-function NotificationItem({ notification }: { notification: any }) {
+// Action Card Component
+function ActionCard({ title, icon, bgColor, href, delay }: { title: string; icon: React.ReactNode; bgColor: string; href?: string; delay: number }) {
+  const content = (
+    <Card variant="elevated" padding="md" style={styles.actionCard}>
+      <View style={[styles.actionIconWrapper, { backgroundColor: bgColor }]}>
+        {icon}
+      </View>
+      <Text style={styles.actionTitle}>{title}</Text>
+      {!href && <Text style={styles.comingSoonText}>Soon</Text>}
+    </Card>
+  );
+
+  if (href) {
+    return (
+      <Animated.View entering={FadeInDown.delay(delay).springify()} style={{ flex: 1 }}>
+        <Link href={href as any} asChild>
+          <TouchableOpacity activeOpacity={0.7} onPress={() => lightImpact()}>
+            {content}
+          </TouchableOpacity>
+        </Link>
+      </Animated.View>
+    );
+  }
+
+  return (
+    <Animated.View entering={FadeInDown.delay(delay).springify()} style={{ flex: 1 }}>
+      {content}
+    </Animated.View>
+  );
+}
+
+// Notification Item Component
+function NotificationItem({ notification, isLast }: { notification: any; isLast: boolean }) {
   const getIcon = () => {
     switch (notification.type) {
-      case 'VITAL_REMINDER': return <Heart size={18} color="#FF4D4D" />;
-      case 'APPOINTMENT_REMINDER': return <Calendar size={18} color="#3A86FF" />;
-      case 'HEALTH_ALERT': return <Baby size={18} color="#FF8FA3" />;
-      case 'REPORT_UPLOADED': return <FileText size={18} color="#10B981" />;
-      default: return <Bell size={18} color="#64748B" />;
+      case 'VITAL_REMINDER': return <Heart size={18} color={theme.colors.danger[500]} />;
+      case 'APPOINTMENT_REMINDER': return <Calendar size={18} color={theme.colors.primary[500]} />;
+      case 'HEALTH_ALERT': return <Baby size={18} color={theme.colors.secondary[500]} />;
+      case 'REPORT_UPLOADED': return <FileText size={18} color={theme.colors.success[500]} />;
+      default: return <Bell size={18} color={theme.colors.gray[500]} />;
     }
   };
 
   const getBgColor = () => {
     switch (notification.type) {
-      case 'VITAL_REMINDER': return '#FFE4E6';
-      case 'APPOINTMENT_REMINDER': return '#E0F2FE';
-      case 'HEALTH_ALERT': return '#FFF1F2';
-      case 'REPORT_UPLOADED': return '#F0FDF4';
-      default: return '#F1F5F9';
+      case 'VITAL_REMINDER': return theme.colors.danger[50];
+      case 'APPOINTMENT_REMINDER': return theme.colors.primary[50];
+      case 'HEALTH_ALERT': return theme.colors.secondary[50];
+      case 'REPORT_UPLOADED': return theme.colors.success[50];
+      default: return theme.colors.gray[50];
     }
   };
 
   return (
-    <View style={[styles.notificationItem, !notification.read && styles.unreadNotification]}>
+    <View style={[styles.notificationItem, !isLast && styles.notificationBorder]}>
       <View style={[styles.notificationIcon, { backgroundColor: getBgColor() }]}>
         {getIcon()}
       </View>
@@ -325,33 +396,12 @@ function NotificationItem({ notification }: { notification: any }) {
         <Text style={styles.notificationTitle}>{notification.title}</Text>
         <Text style={styles.notificationMessage} numberOfLines={1}>{notification.message}</Text>
       </View>
-      {!notification.read && <View style={styles.unreadDot} />}
+      {!notification.read && <Badge variant="primary" dot size="sm" />}
     </View>
   );
 }
 
-import { Link } from 'expo-router';
-
-function ActionCard({ title, icon, bgColor, href }: { title: string; icon: React.ReactNode; bgColor: string; href?: string }) {
-  const isLocked = !href;
-  const content = (
-    <View style={[styles.actionCard, { backgroundColor: '#FFFFFFEE' }]}>
-      <View style={[styles.actionIconWrapper, { backgroundColor: bgColor }]}>
-        {icon}
-      </View>
-      <Text style={[styles.actionTitle, isLocked && { color: COLORS.textSecondary }]}>{title}</Text>
-      {isLocked && <Text style={styles.coming_soonText}>Coming Soon</Text>}
-    </View>
-  );
-
-  if (href) {
-    return <Link href={href as any} asChild><TouchableOpacity activeOpacity={0.7}>{content}</TouchableOpacity></Link>;
-  }
-  return content;
-}
-
-// --- Start Pregnancy Modal Component ---
-
+// Start Pregnancy Modal Component (keeping the existing implementation)
 const BLOOD_TYPES = ['A', 'B', 'AB', 'O'];
 const RH_FACTORS = ['Positive', 'Negative'];
 
@@ -387,6 +437,7 @@ function StartPregnancyModal({ visible, onClose, onSuccess }: { visible: boolean
         height: height ? parseFloat(height) : undefined,
         prePregnancyWeight: weight ? parseFloat(weight) : undefined,
       });
+      mediumImpact();
       Alert.alert('Success', 'Pregnancy tracking started! 🎉');
       onSuccess();
     } catch (error: any) {
@@ -404,7 +455,7 @@ function StartPregnancyModal({ visible, onClose, onSuccess }: { visible: boolean
           <View style={modalStyles.header}>
             <Text style={modalStyles.title}>Start Pregnancy 🤰</Text>
             <TouchableOpacity onPress={onClose} style={modalStyles.closeBtn}>
-              <X size={24} color={COLORS.textSecondary} />
+              <X size={24} color={theme.colors.text.secondary} />
             </TouchableOpacity>
           </View>
 
@@ -443,7 +494,10 @@ function StartPregnancyModal({ visible, onClose, onSuccess }: { visible: boolean
                 {BLOOD_TYPES.map(type => (
                   <TouchableOpacity
                     key={type}
-                    onPress={() => setBloodType(type)}
+                    onPress={() => {
+                      lightImpact();
+                      setBloodType(type);
+                    }}
                     style={[modalStyles.chip, bloodType === type && modalStyles.chipActive]}
                   >
                     <Text style={[modalStyles.chipText, bloodType === type && modalStyles.chipActiveText]}>{type}</Text>
@@ -458,7 +512,10 @@ function StartPregnancyModal({ visible, onClose, onSuccess }: { visible: boolean
                 {RH_FACTORS.map(factor => (
                   <TouchableOpacity
                     key={factor}
-                    onPress={() => setRhFactor(factor)}
+                    onPress={() => {
+                      lightImpact();
+                      setRhFactor(factor);
+                    }}
                     style={[modalStyles.chip, rhFactor === factor && modalStyles.chipActive]}
                   >
                     <Text style={[modalStyles.chipText, rhFactor === factor && modalStyles.chipActiveText]}>{factor}</Text>
@@ -494,131 +551,330 @@ function StartPregnancyModal({ visible, onClose, onSuccess }: { visible: boolean
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 }, // Removed fixed bg color
-  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.background },
-  loadingText: { marginTop: 16, color: COLORS.textSecondary, fontSize: 16 },
+  container: { flex: 1 },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   header: {
-    // backgroundColor: 'rgba(255,255,255,0.8)', // Optional: transparent
-    paddingHorizontal: 20,
-    paddingBottom: 16, // Decreased padding
+    paddingHorizontal: theme.spacing.lg,
+    paddingBottom: theme.spacing.md,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 4,
+    marginBottom: theme.spacing.xs,
   },
-  headerTitleContainer: { flex: 1, paddingRight: 12 },
-  welcomeText: { fontSize: 15, color: COLORS.textSecondary, fontWeight: '500' },
-  userNameText: { fontSize: 24, fontWeight: '800', color: COLORS.textPrimary, marginTop: 0 },
-  headerIcons: { flexDirection: 'row', gap: 12 },
-  headerIconBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.6)', borderRadius: 22 }, // Added bg
-  notificationDot: { position: 'absolute', top: 10, right: 10, width: 10, height: 10, borderRadius: 5, backgroundColor: COLORS.danger, borderWidth: 2, borderColor: COLORS.white },
-  statusCardWrapper: { marginBottom: 32 },
+  headerTitleContainer: { flex: 1, paddingRight: theme.spacing.md },
+  welcomeText: {
+    fontSize: theme.typography.fontSize.sm,
+    color: theme.colors.text.secondary,
+    fontWeight: theme.typography.fontWeight.medium
+  },
+  userNameText: {
+    fontSize: theme.typography.fontSize['3xl'],
+    fontWeight: theme.typography.fontWeight.extrabold,
+    color: theme.colors.text.primary,
+    marginTop: theme.spacing.xs
+  },
+  headerIcons: { flexDirection: 'row', gap: theme.spacing.sm },
+  headerIconBtn: {
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: theme.colors.white,
+    borderRadius: theme.borderRadius.full,
+    ...theme.shadows.sm,
+  },
+  notificationDot: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+  },
+  content: {
+    paddingHorizontal: theme.spacing.lg,
+    paddingTop: theme.spacing.sm
+  },
+  section: { marginBottom: theme.spacing.xl },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: theme.spacing.md
+  },
+  sectionHeader: {
+    fontSize: theme.typography.fontSize.xl,
+    fontWeight: theme.typography.fontWeight.extrabold,
+    color: theme.colors.text.primary,
+    marginBottom: theme.spacing.md
+  },
+  seeAllText: {
+    fontSize: theme.typography.fontSize.sm,
+    color: theme.colors.primary[500],
+    fontWeight: theme.typography.fontWeight.bold
+  },
   statusCard: {
-    padding: 24,
-    borderRadius: 28,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 8
+    ...theme.shadows.lg,
   },
-  statusHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 },
-  statusLabel: { color: 'rgba(255,255,255,0.7)', fontSize: 12, fontWeight: '700', letterSpacing: 0.5 },
-  statusWeek: { color: COLORS.white, fontSize: 34, fontWeight: '800', marginTop: 0 },
-  statusHint: { color: 'rgba(255,255,255,0.9)', fontSize: 13, marginTop: 4, fontWeight: '500' },
-  daysLeftBadge: { backgroundColor: 'rgba(255,255,255,0.25)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 14 },
-  daysLeftText: { color: COLORS.white, fontSize: 13, fontWeight: '700' },
+  statusHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: theme.spacing.md
+  },
+  statusLabel: {
+    color: 'rgba(255,255,255,0.8)',
+    fontSize: theme.typography.fontSize.xs,
+    fontWeight: theme.typography.fontWeight.bold,
+    letterSpacing: 1
+  },
+  statusWeek: {
+    color: theme.colors.white,
+    fontSize: theme.typography.fontSize['4xl'],
+    fontWeight: theme.typography.fontWeight.extrabold,
+    marginTop: theme.spacing.xs
+  },
+  statusHint: {
+    color: 'rgba(255,255,255,0.95)',
+    fontSize: theme.typography.fontSize.sm,
+    marginTop: theme.spacing.xs,
+    fontWeight: theme.typography.fontWeight.medium
+  },
+  daysLeftBadge: {
+    backgroundColor: 'rgba(255,255,255,0.25)',
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.sm,
+    borderRadius: theme.borderRadius.md,
+    alignItems: 'center',
+  },
+  daysLeftText: {
+    color: theme.colors.white,
+    fontSize: theme.typography.fontSize.lg,
+    fontWeight: theme.typography.fontWeight.extrabold
+  },
+  daysLeftLabel: {
+    color: 'rgba(255,255,255,0.9)',
+    fontSize: theme.typography.fontSize.xs,
+    fontWeight: theme.typography.fontWeight.medium
+  },
+  progressContainer: {
+    marginVertical: theme.spacing.md,
+  },
   babySizeContainer: {
     backgroundColor: 'rgba(255,255,255,0.15)',
-    padding: 18,
-    borderRadius: 24,
+    padding: theme.spacing.md,
+    borderRadius: theme.borderRadius.lg,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    marginTop: 20
+    gap: theme.spacing.md,
+  },
+  babyIconCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: theme.borderRadius.full,
+    backgroundColor: theme.colors.white,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...theme.shadows.md,
   },
   babySizeTextContainer: { flex: 1 },
-  babySizeText: { color: COLORS.white, fontSize: 16, fontWeight: '600' },
-  babySizeSubtext: { color: 'rgba(255,255,255,0.7)', fontSize: 12, marginTop: 2, fontWeight: '500' },
-  babySizeHighlight: { fontWeight: '800' },
-  babyIconCircle: { width: 44, height: 44, borderRadius: 22, backgroundColor: COLORS.white, alignItems: 'center', justifyContent: 'center' },
-  section: { marginBottom: 28 }, // Refined spacing
-  sectionHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 },
-  sectionHeader: { fontSize: 20, fontWeight: '800', color: COLORS.textPrimary, marginBottom: 16 },
-  seeAllText: { fontSize: 14, color: COLORS.primary, fontWeight: '700' },
-  statsGrid: { flexDirection: 'row', justifyContent: 'space-between' },
+  babySizeText: {
+    color: theme.colors.white,
+    fontSize: theme.typography.fontSize.base,
+    fontWeight: theme.typography.fontWeight.semibold
+  },
+  babySizeHighlight: { fontWeight: theme.typography.fontWeight.extrabold },
+  babySizeSubtext: {
+    color: 'rgba(255,255,255,0.8)',
+    fontSize: theme.typography.fontSize.xs,
+    marginTop: theme.spacing.xs,
+    fontWeight: theme.typography.fontWeight.medium
+  },
+  startButton: {
+    backgroundColor: theme.colors.white,
+    paddingVertical: theme.spacing.md,
+    paddingHorizontal: theme.spacing.lg,
+    borderRadius: theme.borderRadius.md,
+    alignSelf: 'flex-start',
+    marginTop: theme.spacing.md
+  },
+  startButtonText: {
+    color: theme.colors.text.primary,
+    fontWeight: theme.typography.fontWeight.extrabold,
+    fontSize: theme.typography.fontSize.base
+  },
+  statsGrid: { flexDirection: 'row', gap: theme.spacing.md },
   statCard: {
-    width: '31%',
-    backgroundColor: '#FFFFFFEE', // Refined
-    paddingVertical: 18,
-    borderRadius: 24,
     alignItems: 'center',
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.03, // Reduced
-    shadowRadius: 8,
-    elevation: 2
   },
-  statIconWrapper: { marginBottom: 10 },
-  statValue: { fontSize: 22, fontWeight: '800', color: COLORS.textPrimary },
-  statLabel: { color: COLORS.textSecondary, fontSize: 10, fontWeight: '700', marginTop: 4, textTransform: 'uppercase' },
-  actionsGrid: { flexDirection: 'row', justifyContent: 'space-between', gap: 12 },
+  statIconWrapper: {
+    padding: theme.spacing.sm,
+    borderRadius: theme.borderRadius.md,
+    marginBottom: theme.spacing.sm
+  },
+  statValue: {
+    fontSize: theme.typography.fontSize['2xl'],
+    fontWeight: theme.typography.fontWeight.extrabold,
+    color: theme.colors.text.primary
+  },
+  statLabel: {
+    color: theme.colors.text.secondary,
+    fontSize: theme.typography.fontSize.xs,
+    fontWeight: theme.typography.fontWeight.semibold,
+    marginTop: theme.spacing.xs,
+    textAlign: 'center',
+  },
+  actionsGrid: { flexDirection: 'row', gap: theme.spacing.md },
   actionCard: {
-    flex: 1,
-    padding: 16,
-    borderRadius: 24,
     alignItems: 'center',
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.03, // Reduced
-    shadowRadius: 10,
-    elevation: 2
   },
-  actionIconWrapper: { width: 52, height: 52, borderRadius: 16, alignItems: 'center', justifyContent: 'center', marginBottom: 10 },
-  actionTitle: { fontWeight: '700', color: COLORS.textPrimary, fontSize: 12, textAlign: 'center' },
-  coming_soonText: { fontSize: 8, color: COLORS.textSecondary, marginTop: 2 },
-  startButton: { backgroundColor: COLORS.white, paddingVertical: 12, paddingHorizontal: 20, borderRadius: 16, alignSelf: 'flex-start', marginTop: 16 },
-  startButtonText: { color: COLORS.textPrimary, fontWeight: '800', fontSize: 15 },
+  actionIconWrapper: {
+    width: 56,
+    height: 56,
+    borderRadius: theme.borderRadius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: theme.spacing.sm
+  },
+  actionTitle: {
+    fontWeight: theme.typography.fontWeight.bold,
+    color: theme.colors.text.primary,
+    fontSize: theme.typography.fontSize.sm,
+    textAlign: 'center'
+  },
+  comingSoonText: {
+    fontSize: theme.typography.fontSize.xs,
+    color: theme.colors.text.tertiary,
+    marginTop: theme.spacing.xs
+  },
   tipCard: {
-    padding: 24,
-    borderRadius: 28,
+    flexDirection: 'row',
+    gap: theme.spacing.md,
+    backgroundColor: theme.colors.primary[50],
+  },
+  tipIconWrapper: {
+    width: 56,
+    height: 56,
+    borderRadius: theme.borderRadius.full,
+    backgroundColor: theme.colors.white,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...theme.shadows.sm,
+  },
+  tipTitle: {
+    fontSize: theme.typography.fontSize.base,
+    fontWeight: theme.typography.fontWeight.extrabold,
+    color: theme.colors.text.primary,
+    marginBottom: theme.spacing.xs
+  },
+  tipText: {
+    fontSize: theme.typography.fontSize.sm,
+    color: theme.colors.text.secondary,
+    lineHeight: 20
+  },
+  notificationItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 16,
-    shadowColor: "#3A86FF",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 10,
-    elevation: 3
+    padding: theme.spacing.md,
   },
-  tipIconWrapper: { width: 54, height: 54, borderRadius: 27, backgroundColor: COLORS.white, alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 5 },
-  tipTitle: { fontSize: 15, fontWeight: '800', color: COLORS.textPrimary, marginBottom: 4 },
-  tipText: { fontSize: 14, color: COLORS.textSecondary, lineHeight: 20 },
-  notificationsList: { backgroundColor: '#FFFFFFEE', borderRadius: 24, padding: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.03, shadowRadius: 10, elevation: 2 },
-  notificationItem: { flexDirection: 'row', alignItems: 'center', padding: 12, borderRadius: 16 },
-  unreadNotification: { backgroundColor: '#F8FAFC' },
-  notificationIcon: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginRight: 12 },
+  notificationBorder: {
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border.light,
+  },
+  notificationIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: theme.borderRadius.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: theme.spacing.md
+  },
   notificationContent: { flex: 1 },
-  notificationTitle: { fontSize: 14, fontWeight: '700', color: COLORS.textPrimary, marginBottom: 2 },
-  notificationMessage: { fontSize: 12, color: COLORS.textSecondary },
-  unreadDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: COLORS.primary, marginLeft: 8 },
+  notificationTitle: {
+    fontSize: theme.typography.fontSize.sm,
+    fontWeight: theme.typography.fontWeight.bold,
+    color: theme.colors.text.primary,
+    marginBottom: 2
+  },
+  notificationMessage: {
+    fontSize: theme.typography.fontSize.xs,
+    color: theme.colors.text.secondary
+  },
 });
 
 const modalStyles = StyleSheet.create({
-  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
-  content: { backgroundColor: COLORS.white, borderTopLeftRadius: 32, borderTopRightRadius: 32, padding: 24, maxHeight: '90%' },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 },
-  title: { fontSize: 24, fontWeight: '800', color: COLORS.textPrimary },
-  closeBtn: { padding: 8 },
-  form: { marginBottom: 20 },
-  label: { fontSize: 14, fontWeight: '700', color: COLORS.textSecondary, marginBottom: 8 },
-  input: { backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: COLORS.border, borderRadius: 16, padding: 14, fontSize: 16, color: COLORS.textPrimary, marginBottom: 16 },
-  chipContainer: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  chip: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 12, backgroundColor: '#F1F5F9', borderWidth: 1, borderColor: '#F1F5F9' },
-  chipActive: { backgroundColor: '#DBEAFE', borderColor: COLORS.primary },
-  chipText: { fontSize: 14, color: COLORS.textSecondary, fontWeight: '600' },
-  chipActiveText: { color: COLORS.primary, fontWeight: '700' },
-  row: { flexDirection: 'row', gap: 16, marginTop: 16 },
-  saveButton: { backgroundColor: COLORS.primary, padding: 18, borderRadius: 20, alignItems: 'center', marginTop: 32, shadowColor: COLORS.primary, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.25, shadowRadius: 10 },
-  saveButtonText: { color: COLORS.white, fontWeight: '800', fontSize: 17 },
+  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  content: {
+    backgroundColor: theme.colors.white,
+    borderTopLeftRadius: theme.borderRadius.xl,
+    borderTopRightRadius: theme.borderRadius.xl,
+    padding: theme.spacing.lg,
+    maxHeight: '90%'
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: theme.spacing.lg
+  },
+  title: {
+    fontSize: theme.typography.fontSize['2xl'],
+    fontWeight: theme.typography.fontWeight.extrabold,
+    color: theme.colors.text.primary
+  },
+  closeBtn: { padding: theme.spacing.sm },
+  form: { marginBottom: theme.spacing.md },
+  label: {
+    fontSize: theme.typography.fontSize.sm,
+    fontWeight: theme.typography.fontWeight.bold,
+    color: theme.colors.text.secondary,
+    marginBottom: theme.spacing.sm
+  },
+  input: {
+    backgroundColor: theme.colors.background.secondary,
+    borderWidth: 1,
+    borderColor: theme.colors.border.default,
+    borderRadius: theme.borderRadius.md,
+    padding: theme.spacing.md,
+    fontSize: theme.typography.fontSize.base,
+    color: theme.colors.text.primary,
+    marginBottom: theme.spacing.md
+  },
+  chipContainer: { flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing.sm },
+  chip: {
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.sm,
+    borderRadius: theme.borderRadius.sm,
+    backgroundColor: theme.colors.gray[100],
+    borderWidth: 1,
+    borderColor: theme.colors.gray[100]
+  },
+  chipActive: {
+    backgroundColor: theme.colors.primary[50],
+    borderColor: theme.colors.primary[500]
+  },
+  chipText: {
+    fontSize: theme.typography.fontSize.sm,
+    color: theme.colors.text.secondary,
+    fontWeight: theme.typography.fontWeight.semibold
+  },
+  chipActiveText: {
+    color: theme.colors.primary[500],
+    fontWeight: theme.typography.fontWeight.bold
+  },
+  row: { flexDirection: 'row', gap: theme.spacing.md, marginTop: theme.spacing.md },
+  saveButton: {
+    backgroundColor: theme.colors.primary[500],
+    padding: theme.spacing.lg,
+    borderRadius: theme.borderRadius.md,
+    alignItems: 'center',
+    marginTop: theme.spacing.xl,
+    ...theme.shadows.colored(theme.colors.primary[500]),
+  },
+  saveButtonText: {
+    color: theme.colors.white,
+    fontWeight: theme.typography.fontWeight.extrabold,
+    fontSize: theme.typography.fontSize.lg
+  },
 });
