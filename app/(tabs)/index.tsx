@@ -1,7 +1,7 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { Link, useFocusEffect, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { Baby, Bell, Calendar, FileText, Heart, Pill, User as UserIcon, X } from 'lucide-react-native';
+import { Baby, Bell, Calendar, CheckCircle2, ChevronRight, ClipboardList, FileText, Heart, Pill, User as UserIcon, X } from 'lucide-react-native';
 import React, { useCallback, useState } from 'react';
 import { ActivityIndicator, Alert, Modal, RefreshControl, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
@@ -10,7 +10,8 @@ import { Badge, Card, LoadingSkeleton, ProgressBar, SkeletonGroup } from '../../
 import { useAuth } from '../../src/context/AuthContext';
 import api from '../../src/lib/api';
 import { lightImpact, mediumImpact } from '../../src/lib/haptics';
-import { getBabySize, getDaysUntilDue } from '../../src/lib/pregnancy-utils';
+import { BABY_SIZES, WEEKLY_INSIGHTS } from '../../src/lib/pregnancy-data';
+import { formatDueDate, getPregnancyProgress } from '../../src/lib/pregnancy-utils';
 import theme from '../../src/lib/theme';
 
 type DashboardData = {
@@ -40,12 +41,88 @@ type DashboardData = {
   };
 };
 
+// Insight Detail Modal Component
+function InsightDetailModal({ visible, onClose, insight }: { visible: boolean; onClose: () => void; insight: any }) {
+  if (!insight) return null;
+
+  return (
+    <Modal visible={visible} animationType="fade" transparent={true}>
+      <View style={modalStyles.overlay}>
+        <Animated.View entering={FadeInDown.springify()} style={modalStyles.detailedContent}>
+          <View style={modalStyles.header}>
+            <View style={styles.insightHeader}>
+              <View style={[styles.insightIconWrapper, { backgroundColor: theme.colors.primary[50] }]}>
+                {insight.icon}
+              </View>
+              <Text style={modalStyles.title}>Weekly Insight</Text>
+            </View>
+            <TouchableOpacity onPress={onClose} style={modalStyles.closeBtn}>
+              <X size={24} color={theme.colors.text.secondary} />
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView showsVerticalScrollIndicator={false}>
+            <View style={modalStyles.detailSection}>
+              <Text style={modalStyles.detailLabel}>WHAT'S HAPPENING</Text>
+              <Text style={modalStyles.detailText}>{insight.text}</Text>
+            </View>
+
+            {insight.whyItMatters && (
+              <View style={modalStyles.detailSection}>
+                <Text style={modalStyles.detailLabel}>WHY IT MATTERS</Text>
+                <Text style={[modalStyles.detailText, { fontStyle: 'italic', color: theme.colors.text.secondary }]}>
+                  {insight.whyItMatters}
+                </Text>
+              </View>
+            )}
+
+            {insight.checklist && insight.checklist.length > 0 && (
+              <View style={modalStyles.detailSection}>
+                <Text style={modalStyles.detailLabel}>THIS WEEK'S TASKS</Text>
+                <View style={[styles.insightChecklist, { marginTop: 8 }]}>
+                  {insight.checklist.map((item: string, idx: number) => (
+                    <View key={idx} style={[styles.insightChecklistItem, { marginBottom: 12 }]}>
+                      <CheckCircle2 size={18} color={theme.colors.primary[500]} />
+                      <Text style={[styles.insightChecklistText, { fontSize: 14, flex: 1 }]}>{item}</Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            )}
+
+            <View style={{ height: 20 }} />
+          </ScrollView>
+        </Animated.View>
+      </View>
+    </Modal>
+  );
+}
+
+// Insight Card Component
+function InsightCard({ title, text, icon, color, onPress }: { title: string; text: string; icon: React.ReactNode; color: string; onPress: () => void }) {
+  return (
+    <TouchableOpacity activeOpacity={0.9} onPress={() => { lightImpact(); onPress(); }}>
+      <Card variant="elevated" padding="md" style={[styles.insightCard, { backgroundColor: color }]}>
+        <View style={styles.insightHeader}>
+          <View style={styles.insightIconWrapper}>{icon}</View>
+          <Text style={styles.insightTitle}>{title}</Text>
+        </View>
+        <Text style={[styles.insightText, { lineHeight: 20 }]} numberOfLines={4}>{text}</Text>
+        <View style={{ flex: 1 }} />
+        <Text style={styles.readMoreText}>Tap to learn more →</Text>
+      </Card>
+    </TouchableOpacity>
+  );
+}
+
 export default function Dashboard() {
   const { user, signOut } = useAuth();
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [isModalVisible, setIsModalVisible] = useState(false);
+  const [selectedInsight, setSelectedInsight] = useState<any>(null);
+  const [isInsightModalVisible, setIsInsightModalVisible] = useState(false);
   const router = useRouter();
 
   const fetchData = async () => {
@@ -79,9 +156,11 @@ export default function Dashboard() {
 
   const activePregnancy = data?.pregnancy;
   const stats = data?.stats;
-  const babySize = activePregnancy ? getBabySize(activePregnancy.currentWeek) : null;
-  const daysUntilDue = activePregnancy ? getDaysUntilDue(activePregnancy.dueDate) : null;
-  const weekProgress = activePregnancy ? (activePregnancy.currentWeek / 40) * 100 : 0;
+
+  const progress = activePregnancy ? getPregnancyProgress(activePregnancy.dueDate) : null;
+  const currentWeek = progress?.currentWeek || 0;
+  const babySize = progress ? BABY_SIZES.find(s => s.week === currentWeek) : null;
+  const weekProgress = progress ? (currentWeek / 40) * 100 : 0;
 
   const insets = useSafeAreaInsets();
 
@@ -151,28 +230,35 @@ export default function Dashboard() {
       >
         <View style={styles.content}>
           {/* Pregnancy Status Card */}
-          <Animated.View entering={FadeInDown.delay(100).springify()}>
+          <Animated.View entering={FadeInDown.delay(100).springify()} style={styles.section}>
             {activePregnancy ? (
               <Card variant="gradient" gradientColors={theme.gradients.pregnancy} padding="lg" style={styles.statusCard}>
                 <View style={styles.statusHeader}>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.statusLabel}>CURRENT STATUS</Text>
-                    <Text style={styles.statusWeek}>Week {activePregnancy.currentWeek || '?'}</Text>
+                    <Text style={styles.statusWeek}>
+                      Week {currentWeek}
+                      <Text style={styles.statusWeekTotal}> · {progress?.trimesterName}</Text>
+                    </Text>
                     <Text style={styles.statusHint}>
-                      {activePregnancy.currentWeek < 13 ? 'First Trimester' : activePregnancy.currentWeek < 27 ? 'Second Trimester' : 'Third Trimester'} 🌟
+                      Due {formatDueDate(activePregnancy.dueDate)} · {progress?.daysRemaining} days left
                     </Text>
                   </View>
-                  <View style={styles.daysLeftBadge}>
-                    <Text style={styles.daysLeftText}>{Math.max(0, 280 - (activePregnancy.currentWeek * 7))} days</Text>
-                    <Text style={styles.daysLeftLabel}>remaining</Text>
+                  <View style={styles.trimesterBadge}>
+                    <Text style={styles.trimesterValue}>{progress?.trimesterName.split(' ')[0]}</Text>
+                    <Text style={styles.trimesterLabel}>Trimester</Text>
                   </View>
                 </View>
 
                 {/* Progress Bar */}
                 <View style={styles.progressContainer}>
+                  <View style={styles.progressHeaderRow}>
+                    <Text style={styles.progressLabel}>Pregnancy Progress</Text>
+                    <Text style={[styles.progressLabel, { fontWeight: '800' }]}>{currentWeek} / 40 wks</Text>
+                  </View>
                   <ProgressBar
                     progress={weekProgress}
-                    height={6}
+                    height={8}
                     gradient
                     gradientColors={['#FFFFFF', '#F0F9FF']}
                     backgroundColor="rgba(255,255,255,0.2)"
@@ -186,16 +272,22 @@ export default function Dashboard() {
                     router.push('/growth/baby-growth');
                   }}
                   activeOpacity={0.8}
-                  style={styles.babySizeContainer}
+                  style={styles.babySizeCard}
                 >
-                  <View style={styles.babyIconCircle}>
-                    <Baby size={24} color={theme.colors.primary[500]} />
-                  </View>
-                  <View style={styles.babySizeTextContainer}>
-                    <Text style={styles.babySizeText}>
-                      Size of a <Text style={styles.babySizeHighlight}>{activePregnancy.babySize || '...'}</Text>
-                    </Text>
-                    <Text style={styles.babySizeSubtext}>Tap to see milestones →</Text>
+                  <View style={styles.babySizeInner}>
+                    <Text style={styles.babySizeEmoji}>{babySize?.icon || '🌱'}</Text>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.babySizeLabel}>Your baby is the size of a</Text>
+                      <Text style={styles.babySizeValue}>{babySize?.object || 'Poppy Seed'}</Text>
+                      <View style={styles.babyStatsRow}>
+                        <Text style={styles.babyStatText}>📏 {babySize?.length || '--'}</Text>
+                        <View style={styles.statDot} />
+                        <Text style={styles.babyStatText}>⚖️ {babySize?.weight || '--'}</Text>
+                      </View>
+                    </View>
+                    <View style={styles.milestoneMiniBadge}>
+                      <ChevronRight size={18} color={theme.colors.primary[500]} />
+                    </View>
                   </View>
                 </TouchableOpacity>
               </Card>
@@ -216,31 +308,111 @@ export default function Dashboard() {
             )}
           </Animated.View>
 
+          {/* Weekly Insights */}
+          {activePregnancy && (
+            <Animated.View entering={FadeInDown.delay(200).springify()} style={styles.section}>
+              <View style={styles.sectionHeaderRow}>
+                <Text style={styles.sectionHeader}>Weekly Insights</Text>
+                <Badge size="sm">Week {currentWeek}</Badge>
+              </View>
+
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.insightsScroll}
+                snapToInterval={280 + theme.spacing.md}
+                decelerationRate="fast"
+              >
+                {(() => {
+                  const insight = WEEKLY_INSIGHTS.find(i => i.week === currentWeek);
+                  return (
+                    <>
+                      <InsightCard
+                        title="Your Baby This Week"
+                        text={insight?.baby || "Your baby is continuing to grow and develop amazing new features."}
+                        icon={<Baby size={20} color={theme.colors.primary[600]} />}
+                        color={theme.colors.primary[50]}
+                        onPress={() => {
+                          setSelectedInsight({
+                            title: "Your Baby This Week",
+                            text: insight?.baby || "Your baby is continuing to grow and develop amazing new features.",
+                            icon: <Baby size={20} color={theme.colors.primary[600]} />,
+                            whyItMatters: insight?.whyItMatters,
+                            checklist: insight?.checklist
+                          });
+                          setIsInsightModalVisible(true);
+                        }}
+                      />
+                      <InsightCard
+                        title="Your Body This Week"
+                        text={insight?.mother || "You might feel some new changes as your body supports this journey."}
+                        icon={<UserIcon size={20} color={theme.colors.secondary[600]} />}
+                        color={theme.colors.secondary[50]}
+                        onPress={() => {
+                          setSelectedInsight({
+                            title: "Your Body This Week",
+                            text: insight?.mother || "You might feel some new changes as your body supports this journey.",
+                            icon: <UserIcon size={20} color={theme.colors.secondary[600]} />,
+                            whyItMatters: "Supporting a new life requires significant energy and adjustment.",
+                            checklist: ["Stay hydrated", "Get extra rest"]
+                          });
+                          setIsInsightModalVisible(true);
+                        }}
+                      />
+                      <InsightCard
+                        title="Care Tips This Week"
+                        text={insight?.tip || "Focus on small, daily habits that help you feel your best."}
+                        icon={<Pill size={20} color={theme.colors.success[600]} />}
+                        color={theme.colors.success[50]}
+                        onPress={() => {
+                          setSelectedInsight({
+                            title: "Care Tips This Week",
+                            text: insight?.tip || "Focus on small, daily habits that help you feel your best.",
+                            icon: <Pill size={20} color={theme.colors.success[600]} />,
+                            whyItMatters: "Consistent self-care is the best foundation for a healthy pregnancy.",
+                            checklist: ["Healthy snacks", "Mindful breathing"]
+                          });
+                          setIsInsightModalVisible(true);
+                        }}
+                      />
+                    </>
+                  );
+                })()}
+              </ScrollView>
+            </Animated.View>
+          )}
+
           {/* Stats Overview */}
           {stats && (
             <Animated.View entering={FadeInDown.delay(200).springify()} style={styles.section}>
               <Text style={styles.sectionHeader}>Daily Overview</Text>
               <View style={styles.statsGrid}>
                 <StatCard
-                  icon={<Calendar size={24} color={theme.colors.primary[500]} />}
-                  label="Appointments"
+                  icon={<Calendar size={20} color={theme.colors.primary[500]} />}
+                  label="Appts"
                   value={stats.upcomingAppointments}
-                  color={theme.colors.primary[50]}
+                  subtext={stats.upcomingAppointments > 0 ? "Next at 4 PM" : "None today"}
+                  color={theme.colors.primary[100]}
                   delay={250}
+                  href="/appointments"
                 />
                 <StatCard
-                  icon={<Heart size={24} color={theme.colors.danger[500]} />}
+                  icon={<Heart size={20} color={theme.colors.danger[500]} />}
                   label="Vitals"
                   value={stats.totalVitals}
-                  color={theme.colors.danger[50]}
+                  subtext="Updated today"
+                  color={theme.colors.danger[100]}
                   delay={300}
+                  href="/vitals"
                 />
                 <StatCard
-                  icon={<FileText size={24} color={theme.colors.success[500]} />}
+                  icon={<FileText size={20} color={theme.colors.success[500]} />}
                   label="Reports"
                   value={stats.totalReports}
-                  color={theme.colors.success[50]}
+                  subtext="1 New"
+                  color={theme.colors.success[100]}
                   delay={350}
+                  href="/reports"
                 />
               </View>
             </Animated.View>
@@ -264,12 +436,21 @@ export default function Dashboard() {
                 href="/growth/baby-growth"
                 delay={500}
               />
+            </View>
+            <View style={[styles.actionsGrid, { marginTop: 12 }]}>
               <ActionCard
                 title="Medications"
                 icon={<Pill size={26} color={theme.colors.success[600]} />}
                 bgColor={theme.colors.success[50]}
                 href="/medications/list"
                 delay={550}
+              />
+              <ActionCard
+                title="Checklist"
+                icon={<ClipboardList size={26} color={theme.colors.warning[600]} />}
+                bgColor={theme.colors.warning[50]}
+                href="/checklist"
+                delay={600}
               />
             </View>
           </Animated.View>
@@ -317,19 +498,36 @@ export default function Dashboard() {
           fetchData();
         }}
       />
+
+      <InsightDetailModal
+        visible={isInsightModalVisible}
+        onClose={() => setIsInsightModalVisible(false)}
+        insight={selectedInsight}
+      />
     </LinearGradient>
   );
 }
 
 // Stat Card Component
-function StatCard({ icon, label, value, color, delay }: { icon: React.ReactNode; label: string; value: number; color: string; delay: number }) {
+function StatCard({ icon, label, value, subtext, color, delay, href }: { icon: React.ReactNode; label: string; value: number; subtext?: string; color: string; delay: number; href?: string }) {
+  const content = (
+    <Card variant="elevated" padding="md" style={styles.statCard}>
+      <View style={[styles.statIconWrapper, { backgroundColor: color }]}>{icon}</View>
+      <Text style={styles.statValue}>{value}</Text>
+      <Text style={styles.statLabel} numberOfLines={1}>{label}</Text>
+      {subtext && <Text style={styles.statSubtext}>{subtext}</Text>}
+    </Card>
+  );
+
   return (
     <Animated.View entering={FadeInDown.delay(delay).springify()} style={{ flex: 1 }}>
-      <Card variant="elevated" padding="md" style={styles.statCard}>
-        <View style={[styles.statIconWrapper, { backgroundColor: color }]}>{icon}</View>
-        <Text style={styles.statValue}>{value}</Text>
-        <Text style={styles.statLabel}>{label}</Text>
-      </Card>
+      {href ? (
+        <Link href={href as any} asChild>
+          <TouchableOpacity activeOpacity={0.7} onPress={() => lightImpact()}>
+            {content}
+          </TouchableOpacity>
+        </Link>
+      ) : content}
     </Animated.View>
   );
 }
@@ -596,7 +794,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: theme.spacing.lg,
     paddingTop: theme.spacing.sm
   },
-  section: { marginBottom: theme.spacing.xl },
+  section: {
+    marginBottom: theme.spacing.xl + theme.spacing.sm, // Increase spacing for better breathing room
+  },
   sectionHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -632,64 +832,172 @@ const styles = StyleSheet.create({
   statusWeek: {
     color: theme.colors.white,
     fontSize: theme.typography.fontSize['4xl'],
-    fontWeight: theme.typography.fontWeight.extrabold,
-    marginTop: theme.spacing.xs
+    fontWeight: theme.typography.fontWeight.bold,
+    marginBottom: theme.spacing.xs
+  },
+  statusWeekTotal: {
+    fontSize: theme.typography.fontSize.base,
+    fontWeight: theme.typography.fontWeight.medium,
+    opacity: 0.8,
   },
   statusHint: {
-    color: 'rgba(255,255,255,0.95)',
+    color: 'rgba(255,255,255,0.9)',
     fontSize: theme.typography.fontSize.sm,
-    marginTop: theme.spacing.xs,
-    fontWeight: theme.typography.fontWeight.medium
+    fontWeight: theme.typography.fontWeight.semibold
   },
-  daysLeftBadge: {
-    backgroundColor: 'rgba(255,255,255,0.25)',
+  daysBadge: {
+    backgroundColor: 'rgba(255,255,255,0.2)',
     paddingHorizontal: theme.spacing.md,
     paddingVertical: theme.spacing.sm,
     borderRadius: theme.borderRadius.md,
     alignItems: 'center',
+    minWidth: 80,
   },
-  daysLeftText: {
+  daysValue: {
     color: theme.colors.white,
-    fontSize: theme.typography.fontSize.lg,
+    fontSize: theme.typography.fontSize.xl,
     fontWeight: theme.typography.fontWeight.extrabold
   },
-  daysLeftLabel: {
+  daysLabel: {
     color: 'rgba(255,255,255,0.9)',
-    fontSize: theme.typography.fontSize.xs,
-    fontWeight: theme.typography.fontWeight.medium
+    fontSize: 10,
+    fontWeight: theme.typography.fontWeight.medium,
+    textTransform: 'uppercase'
   },
   progressContainer: {
     marginVertical: theme.spacing.md,
   },
-  babySizeContainer: {
-    backgroundColor: 'rgba(255,255,255,0.15)',
+  babySizeCard: {
+    backgroundColor: theme.colors.white,
     padding: theme.spacing.md,
     borderRadius: theme.borderRadius.lg,
+    marginTop: theme.spacing.sm,
+    ...theme.shadows.sm,
+  },
+  babySizeInner: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: theme.spacing.md,
   },
-  babyIconCircle: {
-    width: 48,
-    height: 48,
-    borderRadius: theme.borderRadius.full,
-    backgroundColor: theme.colors.white,
+  babySizeEmoji: {
+    fontSize: 32,
+    backgroundColor: theme.colors.primary[50],
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    textAlign: 'center',
+    lineHeight: 60,
+  },
+  babySizeLabel: {
+    fontSize: 12,
+    color: theme.colors.text.tertiary,
+    fontWeight: '600',
+  },
+  babySizeValue: {
+    fontSize: theme.typography.fontSize.lg,
+    fontWeight: '800',
+    color: theme.colors.text.primary,
+    marginBottom: 4,
+  },
+  babyStatsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  babyStatText: {
+    fontSize: 12,
+    color: theme.colors.text.secondary,
+    fontWeight: '600',
+  },
+  statDot: {
+    width: 3,
+    height: 3,
+    borderRadius: 2,
+    backgroundColor: theme.colors.gray[300],
+  },
+  milestoneMiniBadge: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: theme.colors.primary[50],
     alignItems: 'center',
     justifyContent: 'center',
-    ...theme.shadows.md,
   },
-  babySizeTextContainer: { flex: 1 },
-  babySizeText: {
+  insightsScroll: {
+    gap: theme.spacing.md,
+    paddingRight: theme.spacing.xl,
+  },
+  insightCard: {
+    width: 280,
+    height: 180,
+    borderWidth: 0,
+    ...theme.shadows.sm,
+  },
+  insightHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: theme.spacing.sm,
+  },
+  insightIconWrapper: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255,255,255,0.5)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  insightTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: theme.colors.text.primary,
+  },
+  insightText: {
+    fontSize: 13,
+    color: theme.colors.text.secondary,
+    lineHeight: 18,
+  },
+  insightChecklistText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: theme.colors.text.primary,
+  },
+  readMoreText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: theme.colors.primary[600],
+    marginTop: theme.spacing.sm,
+    letterSpacing: 0.3,
+  },
+  trimesterBadge: {
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.sm,
+    borderRadius: theme.borderRadius.md,
+    alignItems: 'center',
+    minWidth: 80,
+  },
+  trimesterValue: {
     color: theme.colors.white,
-    fontSize: theme.typography.fontSize.base,
-    fontWeight: theme.typography.fontWeight.semibold
+    fontSize: theme.typography.fontSize.xl,
+    fontWeight: theme.typography.fontWeight.extrabold
   },
-  babySizeHighlight: { fontWeight: theme.typography.fontWeight.extrabold },
-  babySizeSubtext: {
-    color: 'rgba(255,255,255,0.8)',
-    fontSize: theme.typography.fontSize.xs,
-    marginTop: theme.spacing.xs,
-    fontWeight: theme.typography.fontWeight.medium
+  trimesterLabel: {
+    color: 'rgba(255,255,255,0.9)',
+    fontSize: 10,
+    fontWeight: theme.typography.fontWeight.medium,
+    textTransform: 'uppercase'
+  },
+  progressHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: theme.spacing.xs,
+  },
+  progressLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: 'rgba(255,255,255,0.9)',
   },
   startButton: {
     backgroundColor: theme.colors.white,
@@ -714,15 +1022,22 @@ const styles = StyleSheet.create({
     marginBottom: theme.spacing.sm
   },
   statValue: {
-    fontSize: theme.typography.fontSize['2xl'],
+    fontSize: theme.typography.fontSize.xl,
     fontWeight: theme.typography.fontWeight.extrabold,
-    color: theme.colors.text.primary
+    color: theme.colors.text.primary,
+    marginTop: theme.spacing.xs
   },
   statLabel: {
     color: theme.colors.text.secondary,
     fontSize: theme.typography.fontSize.xs,
     fontWeight: theme.typography.fontWeight.semibold,
     marginTop: theme.spacing.xs,
+    textAlign: 'center',
+  },
+  statSubtext: {
+    color: theme.colors.text.tertiary,
+    fontSize: 10,
+    marginTop: 2,
     textAlign: 'center',
   },
   actionsGrid: { flexDirection: 'row', gap: theme.spacing.md },
@@ -876,5 +1191,29 @@ const modalStyles = StyleSheet.create({
     color: theme.colors.white,
     fontWeight: theme.typography.fontWeight.extrabold,
     fontSize: theme.typography.fontSize.lg
+  },
+  detailedContent: {
+    backgroundColor: theme.colors.white,
+    borderTopLeftRadius: theme.borderRadius.xl,
+    borderTopRightRadius: theme.borderRadius.xl,
+    padding: theme.spacing.lg,
+    maxHeight: '85%',
+    width: '100%',
+  },
+  detailSection: {
+    marginBottom: theme.spacing.xl,
+  },
+  detailLabel: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: theme.colors.text.tertiary,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    marginBottom: theme.spacing.sm,
+  },
+  detailText: {
+    fontSize: 15,
+    color: theme.colors.text.primary,
+    lineHeight: 24,
   },
 });

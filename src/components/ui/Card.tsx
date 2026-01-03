@@ -6,7 +6,7 @@
 
 import { LinearGradient } from 'expo-linear-gradient';
 import React from 'react';
-import { StyleSheet, TouchableOpacity, View, ViewStyle } from 'react-native';
+import { StyleProp, StyleSheet, TouchableOpacity, View, ViewStyle } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import { lightImpact } from '../../lib/haptics';
 import theme from '../../lib/theme';
@@ -19,7 +19,7 @@ interface CardProps {
     children: React.ReactNode;
     variant?: CardVariant;
     onPress?: () => void;
-    style?: ViewStyle;
+    style?: StyleProp<ViewStyle>;
     padding?: keyof typeof theme.spacing;
     gradientColors?: readonly string[];
 }

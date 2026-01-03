@@ -67,7 +67,9 @@ export default function MedicationListScreen() {
         try {
             setLoading(true);
             const res = await api.get('/mobile-medications');
+            console.log('[Medications] API Response:', res.data);
             const data = res.data.medications || [];
+            console.log('[Medications] Fetched medications:', data.length, 'items');
             setMedications(data);
             processSchedule(data);
         } catch (error) {
@@ -79,31 +81,55 @@ export default function MedicationListScreen() {
     };
 
     const processSchedule = (meds: Medication[]) => {
-        const schedule: DailySlot[] = [];
-        const today = new Date().toISOString().split('T')[0];
+        try {
+            const schedule: DailySlot[] = [];
+            const today = new Date().toISOString().split('T')[0];
 
-        meds.forEach(med => {
-            med.timeOfDay.forEach(time => {
-                const scheduledTime = `${today}T${time}:00.000Z`;
-                const existingLog = med.logs.find(log => {
-                    const logTime = new Date(log.scheduledFor).toISOString().split('T')[1].substring(0, 5);
-                    return logTime === time;
-                });
+            console.log('[Medications] Processing schedule for', meds.length, 'medications');
 
-                schedule.push({
-                    reminderId: med.id,
-                    name: med.name,
-                    dosage: med.dosage,
-                    time,
-                    taken: existingLog?.taken || false,
-                    logId: existingLog?.id
+            meds.forEach(med => {
+                console.log('[Medications] Processing:', med.name, 'with times:', med.timeOfDay);
+
+                // Validate timeOfDay array
+                if (!med.timeOfDay || med.timeOfDay.length === 0) {
+                    console.warn('[Medications] Medication has no timeOfDay:', med.name);
+                    return;
+                }
+
+                med.timeOfDay.forEach(time => {
+                    const scheduledTime = `${today}T${time}:00.000Z`;
+
+                    // Normalize time format for comparison (handle both HH:MM and HH:MM:SS)
+                    const normalizedTime = time.substring(0, 5); // Get HH:MM
+
+                    const existingLog = med.logs.find(log => {
+                        const logDate = new Date(log.scheduledFor);
+                        const logTime = logDate.toISOString().split('T')[1].substring(0, 5);
+                        const logDay = logDate.toISOString().split('T')[0];
+
+                        // Match both time and date
+                        return logTime === normalizedTime && logDay === today;
+                    });
+
+                    schedule.push({
+                        reminderId: med.id,
+                        name: med.name,
+                        dosage: med.dosage,
+                        time: normalizedTime,
+                        taken: existingLog?.taken || false,
+                        logId: existingLog?.id
+                    });
                 });
             });
-        });
 
-        // Sort by time
-        schedule.sort((a, b) => a.time.localeCompare(b.time));
-        setDailySchedule(schedule);
+            // Sort by time
+            schedule.sort((a, b) => a.time.localeCompare(b.time));
+            console.log('[Medications] Processed schedule:', schedule.length, 'slots');
+            setDailySchedule(schedule);
+        } catch (error) {
+            console.error('[Medications] Error processing schedule:', error);
+            setDailySchedule([]);
+        }
     };
 
     useFocusEffect(

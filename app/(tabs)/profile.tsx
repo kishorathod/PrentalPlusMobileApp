@@ -46,7 +46,7 @@ export default function ProfileScreen() {
             >
                 <View style={styles.menuGroup}>
                     <ProfileMenuItem icon={UserIcon} title="Personal Information" color="#3A86FF" href="/profile/personal-info" />
-                    <ProfileMenuItem icon={Bell} title="Notifications" color="#FCA311" href="/profile/notifications" />
+                    <ProfileMenuItem icon={Bell} title="Smart Reminders" color="#FCA311" href="/profile/reminders" />
                     <ProfileMenuItem icon={Shield} title="Security" color="#10B981" href="/profile/security" />
                     <ProfileMenuItem icon={Headset} title="Help & Support" color="#8B5CF6" href="/profile/support" isLast />
                 </View>

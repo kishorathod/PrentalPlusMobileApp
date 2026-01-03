@@ -4,6 +4,7 @@
  * A flexible input component with validation states, icons, and floating labels.
  */
 
+import { CheckCircle2 } from 'lucide-react-native';
 import React, { useState } from 'react';
 import { StyleSheet, Text, TextInput, TextInputProps, View, ViewStyle } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
@@ -62,6 +63,8 @@ export default function Input({
                 isFocused ? theme.colors.primary[500] :
                     theme.colors.border.default;
 
+    const borderWidth = isFocused || currentState !== 'default' ? 2 : 1;
+
     return (
         <View style={[styles.container, containerStyle]}>
             {label && (
@@ -72,18 +75,32 @@ export default function Input({
                 </Animated.View>
             )}
 
-            <View style={[styles.inputContainer, { borderColor }]}>
+            <View style={[styles.inputContainer, { borderColor, borderWidth }]}>
                 {leftIcon && <View style={styles.leftIcon}>{leftIcon}</View>}
 
                 <TextInput
-                    style={[styles.input, leftIcon && styles.inputWithLeftIcon, rightIcon && styles.inputWithRightIcon]}
+                    style={[
+                        styles.input,
+                        leftIcon ? styles.inputWithLeftIcon : null,
+                        (rightIcon || currentState === 'success') ? styles.inputWithRightIcon : null
+                    ]}
                     placeholderTextColor={theme.colors.text.tertiary}
                     onFocus={handleFocus}
                     onBlur={handleBlur}
                     {...textInputProps}
                 />
 
-                {rightIcon && <View style={styles.rightIcon}>{rightIcon}</View>}
+                {currentState === 'success' && !rightIcon && (
+                    <View style={styles.rightIcon}>
+                        <CheckCircle2 size={20} color={theme.colors.success[500]} />
+                    </View>
+                )}
+
+                {rightIcon && (
+                    <View style={styles.rightIconContainer}>
+                        {rightIcon}
+                    </View>
+                )}
             </View>
 
             {(error || helperText) && (
@@ -105,9 +122,10 @@ const styles = StyleSheet.create({
     },
 
     label: {
-        fontSize: theme.typography.fontSize.sm,
-        fontWeight: theme.typography.fontWeight.medium,
+        fontSize: theme.typography.fontSize.base,
+        fontWeight: theme.typography.fontWeight.semibold,
         color: theme.colors.text.secondary,
+        paddingLeft: 4,
     },
 
     labelFocused: {
@@ -144,6 +162,14 @@ const styles = StyleSheet.create({
 
     rightIcon: {
         marginLeft: theme.spacing.sm,
+    },
+
+    rightIconContainer: {
+        marginLeft: theme.spacing.sm,
+        justifyContent: 'center',
+        alignItems: 'center',
+        minWidth: 44,
+        minHeight: 44, // Minimum tap target
     },
 
     helperText: {

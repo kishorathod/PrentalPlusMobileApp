@@ -26,6 +26,7 @@ type VitalReading = {
     temperature?: number;
     glucose?: number;
     spo2?: number;
+    mood?: string;
     fetalMovement?: number;
     week?: number;
     notes?: string;
@@ -62,6 +63,7 @@ export default function VitalsScreen() {
         temperature: '',
         glucose: '',
         spo2: '',
+        mood: '',
         notes: '',
     });
 
@@ -97,7 +99,7 @@ export default function VitalsScreen() {
     const handleRecord = async () => {
         // At least one vital must be provided
         const hasValue = formData.systolic || formData.diastolic || formData.heartRate ||
-            formData.weight || formData.temperature || formData.glucose || formData.spo2;
+            formData.weight || formData.temperature || formData.glucose || formData.spo2 || formData.mood;
 
         if (!hasValue) {
             Alert.alert('Error', 'Please enter at least one health measurement.');
@@ -120,6 +122,7 @@ export default function VitalsScreen() {
                 temperature: formData.temperature ? parseFloat(formData.temperature) : undefined,
                 glucose: formData.glucose ? parseFloat(formData.glucose) : undefined,
                 spo2: formData.spo2 ? parseInt(formData.spo2) : undefined,
+                mood: formData.mood || undefined,
                 notes: formData.notes,
                 recordedAt: new Date().toISOString(),
             };
@@ -141,6 +144,7 @@ export default function VitalsScreen() {
                 temperature: '',
                 glucose: '',
                 spo2: '',
+                mood: '',
                 notes: '',
             });
             fetchVitals();
@@ -266,6 +270,21 @@ export default function VitalsScreen() {
                                     </View>
                                 </View>
 
+                                <View style={modalStyles.inputGroup}>
+                                    <Text style={modalStyles.label}>How are you feeling? (Mood)</Text>
+                                    <View style={modalStyles.moodRow}>
+                                        {['😊', '😀', '😌', '🤢', '😢', '😫', '😡'].map(m => (
+                                            <TouchableOpacity
+                                                key={m}
+                                                onPress={() => setFormData(p => ({ ...p, mood: m }))}
+                                                style={[modalStyles.moodItem, formData.mood === m && modalStyles.moodSelected]}
+                                            >
+                                                <Text style={{ fontSize: 24 }}>{m}</Text>
+                                            </TouchableOpacity>
+                                        ))}
+                                    </View>
+                                </View>
+
                                 <FormInput label="SpO2 (%)" value={formData.spo2} onChangeText={(t: string) => setFormData(p => ({ ...p, spo2: t }))} placeholder="98" keyboardType="numeric" />
                                 <FormInput label="Notes" value={formData.notes} onChangeText={(t: string) => setFormData(p => ({ ...p, notes: t }))} placeholder="How are you feeling?" multiline />
 
@@ -310,6 +329,11 @@ function VitalReadingCard({ reading }: { reading: VitalReading }) {
                 {reading.week && (
                     <View style={styles.weekBadge}>
                         <Text style={styles.weekBadgeText}>Week {reading.week}</Text>
+                    </View>
+                )}
+                {reading.mood && (
+                    <View style={styles.moodBadge}>
+                        <Text style={{ fontSize: 16 }}>{reading.mood}</Text>
                     </View>
                 )}
             </View>
@@ -442,6 +466,17 @@ const styles = StyleSheet.create({
     readingDate: { color: COLORS.textSecondary, fontSize: 14, fontWeight: '600' },
     weekBadge: { backgroundColor: '#E0F2FE', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10 },
     weekBadgeText: { color: COLORS.primary, fontSize: 12, fontWeight: '800' },
+    moodBadge: {
+        marginLeft: 8,
+        backgroundColor: '#F8FAFC',
+        width: 32,
+        height: 32,
+        borderRadius: 16,
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderWidth: 1,
+        borderColor: COLORS.border,
+    },
     readingGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 16 },
     readingItem: { minWidth: '45%', flexDirection: 'row', alignItems: 'center', gap: 10 },
     readingItemIcon: { width: 28, height: 28, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
@@ -501,6 +536,25 @@ const modalStyles = StyleSheet.create({
         paddingVertical: 14,
         fontSize: 16,
         color: COLORS.textPrimary
+    },
+    moodRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        marginTop: 4,
+    },
+    moodItem: {
+        width: 44,
+        height: 44,
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderRadius: 12,
+        backgroundColor: '#F8FAFC',
+        borderWidth: 1,
+        borderColor: COLORS.border,
+    },
+    moodSelected: {
+        borderColor: COLORS.primary,
+        backgroundColor: '#E0F2FE',
     },
     saveButton: {
         backgroundColor: COLORS.primary,

@@ -5,6 +5,7 @@ import * as SecureStore from 'expo-secure-store';
 // For Android Emulator use 'http://10.0.2.2:3000/api'
 // For Physical Device use your machine's LAN IP e.g., 'http://192.168.1.X:3000/api'
 export const API_URL = 'https://prenatal-plus.vercel.app/api';
+// export const API_URL = 'http://10.217.220.173:3000/api'; // Local backend for debugging
 
 const api = axios.create({
     baseURL: API_URL,
@@ -20,6 +21,14 @@ api.interceptors.request.use(async (config) => {
         console.log('[API Interceptor] Token retrieved:', token ? `${token.substring(0, 15)}...` : 'NULL/EMPTY');
 
         if (token) {
+            // Decode and log userId for debugging
+            try {
+                const decoded = JSON.parse(Buffer.from(token, 'base64').toString());
+                console.log('[API Interceptor] Decoded userId:', decoded.userId);
+            } catch (e) {
+                console.log('[API Interceptor] Could not decode token (might be cookie format)');
+            }
+
             if (token.includes('authjs.session-token=') || token.includes('next-auth.session-token=')) {
                 config.headers['Cookie'] = token;
                 console.log('[API Interceptor] Attached Cookie header');

@@ -83,11 +83,14 @@ export default function AddMedicationScreen() {
 
         try {
             setLoading(true);
-            await api.post('/mobile-medications', formData);
+            console.log('[AddMedication] Sending data:', formData);
+            const response = await api.post('/mobile-medications', formData);
+            console.log('[AddMedication] Response:', response.data);
             Alert.alert('Success', 'Medication reminder added! 🎉');
             router.back();
         } catch (error: any) {
             console.error('[AddMedication] Save error:', error);
+            console.error('[AddMedication] Error response:', error.response?.data);
             const errorDetail = error.response?.data?.details || error.response?.data?.error || error.response?.data?.message || 'Unknown error';
             Alert.alert('Error', `Failed to save medication reminder\n\n${typeof errorDetail === 'object' ? JSON.stringify(errorDetail) : errorDetail}`);
         } finally {

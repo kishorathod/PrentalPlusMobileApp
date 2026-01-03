@@ -37,7 +37,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="appointments"
         options={{
-          title: 'Appointments',
+          title: 'Appts',
           tabBarIcon: ({ color }) => <Calendar size={24} color={color} />,
         }}
       />

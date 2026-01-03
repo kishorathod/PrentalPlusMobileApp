@@ -1,4 +1,5 @@
 import * as DocumentPicker from 'expo-document-picker';
+import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
 import {
     CheckCircle2,
@@ -7,6 +8,7 @@ import {
     FilePlus,
     FileText,
     Plus,
+    Shield,
     User,
     X
 } from 'lucide-react-native';
@@ -27,6 +29,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import api from '../../src/lib/api';
+import theme from '../../src/lib/theme';
 
 const { width } = Dimensions.get('window');
 
@@ -226,8 +229,11 @@ export default function ReportsScreen() {
             <View style={[styles.header, { paddingTop: Math.max(insets.top, 16) }]}>
                 <View style={styles.headerRow}>
                     <View>
-                        <Text style={styles.headerTitle}>Medical Reports</Text>
-                        <Text style={styles.headerSubtitle}>Your health record archive</Text>
+                        <View style={styles.vaultHeaderRow}>
+                            <Shield size={22} color={theme.colors.primary[500]} />
+                            <Text style={styles.headerTitle}>Scan Vault</Text>
+                        </View>
+                        <Text style={styles.headerSubtitle}>Securely archive your medical history</Text>
                     </View>
                     <TouchableOpacity
                         style={styles.uploadButton}
@@ -302,16 +308,19 @@ export default function ReportsScreen() {
                     ))
                 ) : (
                     <View style={styles.emptyContainer}>
-                        <View style={styles.emptyIconContainer}>
-                            <FilePlus size={48} color="#3A86FF" />
-                        </View>
-                        <Text style={styles.emptyTitle}>No Reports Yet</Text>
-                        <Text style={styles.emptyText}>Keep your medical history organized. Upload your latest ultrasound, lab results, or prescriptions here.</Text>
+                        <LinearGradient
+                            colors={['#EEF2FF', '#FFFFFF']}
+                            style={styles.emptyIconGradient}
+                        >
+                            <Shield size={48} color={theme.colors.primary[500]} />
+                        </LinearGradient>
+                        <Text style={styles.emptyTitle}>Your Vault is Empty</Text>
+                        <Text style={styles.emptyText}>Tap 'Upload' to securely store your scans, blood tests, and prescriptions in one place.</Text>
                         <TouchableOpacity
                             style={styles.emptyButton}
                             onPress={() => setIsUploadModalVisible(true)}
                         >
-                            <Text style={styles.emptyButtonText}>Upload First Report</Text>
+                            <Text style={styles.emptyButtonText}>Get Started</Text>
                         </TouchableOpacity>
                     </View>
                 )}
@@ -469,14 +478,20 @@ const styles = StyleSheet.create({
     },
     headerTitle: {
         fontSize: 28,
-        fontWeight: 'bold',
+        fontWeight: '900',
         color: '#1E293B',
-        letterSpacing: -0.5,
+        letterSpacing: -1,
+    },
+    vaultHeaderRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
     },
     headerSubtitle: {
         fontSize: 14,
         color: '#64748B',
-        marginTop: 2,
+        marginTop: 4,
+        fontWeight: '500',
     },
     uploadButton: {
         backgroundColor: '#3A86FF',
@@ -608,19 +623,15 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         paddingHorizontal: 30,
     },
-    emptyIconContainer: {
+    emptyIconGradient: {
         width: 100,
         height: 100,
         borderRadius: 50,
-        backgroundColor: 'white',
         alignItems: 'center',
         justifyContent: 'center',
         marginBottom: 24,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 10 },
-        shadowOpacity: 0.05,
-        shadowRadius: 20,
-        elevation: 2,
+        borderWidth: 1,
+        borderColor: theme.colors.primary[100],
     },
     emptyTitle: {
         fontSize: 22,

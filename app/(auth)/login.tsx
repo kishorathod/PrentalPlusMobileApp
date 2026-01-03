@@ -128,15 +128,19 @@ export default function LoginScreen() {
                         autoCapitalize="none"
                         leftIcon={<Lock size={20} color={theme.colors.text.tertiary} />}
                         rightIcon={
-                            <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
+                            <TouchableOpacity
+                                onPress={() => setShowPassword(!showPassword)}
+                                style={styles.eyeIcon}
+                                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                            >
                                 {showPassword ? (
-                                    <EyeOff size={20} color={theme.colors.text.tertiary} />
+                                    <EyeOff size={22} color={theme.colors.primary[500]} />
                                 ) : (
-                                    <Eye size={20} color={theme.colors.text.tertiary} />
+                                    <Eye size={22} color={theme.colors.text.tertiary} />
                                 )}
                             </TouchableOpacity>
                         }
-                        containerStyle={styles.inputContainer}
+                        containerStyle={styles.passwordInput}
                     />
 
                     <TouchableOpacity
@@ -179,25 +183,26 @@ const styles = StyleSheet.create({
     },
     keyboardView: {
         flex: 1,
-        justifyContent: 'center',
+        justifyContent: 'flex-start',
         paddingHorizontal: theme.spacing.xl,
+        paddingTop: Platform.OS === 'ios' ? 80 : 60,
     },
     logoContainer: {
         alignItems: 'center',
-        marginBottom: theme.spacing['2xl'],
+        marginBottom: theme.spacing.xl,
     },
     logoGradient: {
-        width: 80,
-        height: 80,
-        borderRadius: theme.borderRadius.lg,
+        width: 56, // Reduced from 80
+        height: 56, // Reduced from 80
+        borderRadius: theme.borderRadius.md, // Adjusted from lg
         alignItems: 'center',
         justifyContent: 'center',
         marginBottom: theme.spacing.md,
-        ...theme.shadows.lg,
+        ...theme.shadows.md, // Adjusted from lg
     },
     logoText: {
         color: theme.colors.white,
-        fontSize: theme.typography.fontSize['4xl'],
+        fontSize: theme.typography.fontSize['2xl'], // Reduced from 4xl
         fontWeight: theme.typography.fontWeight.extrabold,
     },
     title: {
@@ -210,6 +215,7 @@ const styles = StyleSheet.create({
         fontSize: theme.typography.fontSize.base,
         color: theme.colors.text.secondary,
         textAlign: 'center',
+        paddingHorizontal: theme.spacing.lg,
     },
     formContainer: {
         marginBottom: theme.spacing.lg,
@@ -217,14 +223,21 @@ const styles = StyleSheet.create({
     inputContainer: {
         marginBottom: theme.spacing.md,
     },
+    passwordInput: {
+        marginBottom: theme.spacing.xs, // Pull forgot password closer
+    },
+    eyeIcon: {
+        padding: 4,
+    },
     forgotPassword: {
         alignSelf: 'flex-end',
-        marginBottom: theme.spacing.lg,
+        marginBottom: theme.spacing.xl,
+        paddingVertical: 4,
     },
     forgotPasswordText: {
-        color: theme.colors.primary[500],
+        color: theme.colors.primary[600], // Darkened for better contrast
         fontSize: theme.typography.fontSize.sm,
-        fontWeight: theme.typography.fontWeight.semibold,
+        fontWeight: theme.typography.fontWeight.bold, // Increased weight
     },
     loginButton: {
         marginTop: theme.spacing.sm,
